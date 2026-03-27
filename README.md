@@ -4,7 +4,7 @@ This repository contains the implementation of Metamorphic Training for Natural 
 
 > **⚠️ Disclaimer**
 >
-> The code in this repository is currently a research prototype and may appear disorganized, containing many experimental scripts and temporary files. We plan to refactor and clean up the codebase comprehensively after the paper is accepted. Thank you for your understanding.
+> The code in this repository is currently a research prototype and may appear disorganized, containing many experimental scripts and temporary files, deprecated code, legacy versions, duplicated implementations, and unused experimental scripts. Please treat the codebase as a prototype and prioritize the main pipeline files described below when reproducing results. We plan to refactor and clean up the codebase comprehensively after the paper is accepted. Thank you for your understanding. 
 
 ## 🛠️ Environment Setup
 
@@ -59,6 +59,16 @@ python NLImain.py --dataset_name snli --model_name bert-base-uncased --epochs 10
 python NLImain.py --dataset_name snli --use_data_augmentation --labeled_ratio 0.1
 ```
 
+#### Alternative Entrypoints (Optional)
+In addition to `NLImain.py`, you can also run experiments via:
+
+```bash
+python new_run.py
+python new_test.py
+```
+
+These scripts are optional alternatives for some experiment workflows and testing scenarios.
+
 #### Detailed Arguments Explanation
 
 **Dataset & Model Configuration**
@@ -107,12 +117,6 @@ When you run `NLImain.py` with `--use_data_augmentation` for the first time:
 4.  **Ensure your LLM service (e.g., Ollama) is running** before starting the training script.
 5.  Generated data is saved locally and will be reused in subsequent runs.
 
-### Training Workflow
-The default training pipeline (`train_nli` in `NLItrain.py`) typically consists of three stages:
-1.  **Labeled Training**: Train the model on the small labeled dataset.
-2.  **Dual Consistency Training**: Fine-tune using the augmented data with consistency loss (leveraging Metamorphic Relations).
-3.  **Unlabeled Training**: Further training using unlabeled data (if provided).
-
 ## 📂 Directory Organization
 
 To ensure the code runs correctly, please organize your files as follows or update the paths in the code accordingly.
@@ -140,6 +144,37 @@ DEFAULT_AUG_ROOT = "./nli_aug_data"
 # Change this to your desired path for caching datasets
 cache_dir = "./nli_dataset_cache"
 ```
+
+### Dataset JSON Format and Location
+If you use local prepared data, dataset files should be stored in **JSON format** under the augmented-data directory expected by `NLIdataset.py`.
+
+Default root directory:
+
+```text
+/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/
+```
+
+Expected subdirectory naming rule:
+
+```text
+{dataset_name}_lr{labeled_ratio}_{llm_model_name}
+```
+
+Example:
+
+```text
+nli_aug_data/snli_lr0.1_llama-3-8b/
+```
+
+Expected JSON files in that directory include:
+
+* `labeled_data.json`
+* `unlabeled_data.json`
+* `augmented_data.json`
+* `test.json`
+* `validation.json`
+
+If your data is not placed in this structure, update `DEFAULT_AUG_ROOT` (and related path settings) in `NLIdataset.py` before running training.
 
 ### Model Storage
 *   **Pre-trained Models**: By default, the code uses Hugging Face's `AutoModel` which downloads models to the default Hugging Face cache (`~/.cache/huggingface`). You can also specify a local path using `--model_name`.
