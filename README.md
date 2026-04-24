@@ -6,6 +6,17 @@ This repository contains the implementation of Metamorphic Training for Natural 
 >
 > The code in this repository is currently a research prototype and may appear disorganized, containing many experimental scripts and temporary files, deprecated code, legacy versions, duplicated implementations, and unused experimental scripts. Please treat the codebase as a prototype and prioritize the main pipeline files described below when reproducing results. We plan to refactor and clean up the codebase comprehensively after the paper is accepted. Thank you for your understanding. 
 
+## 📦 Example Dataset (SNLI)
+
+> **Note on Provided Example Data**
+>
+> To facilitate reproduction and experimentation without requiring immediate LLM-based data generation, we have included a **cropped example subset of the SNLI dataset** in this repository.
+>
+> - **Reason for cropping**: The original SNLI dataset exceeds GitHub's file size upload limits; therefore, a representative subset has been prepared for demonstration purposes.
+> - **Usage**: If you prefer not to generate metamorphic samples via LLMs at this stage, you may directly use the provided example data for training and validation.
+> - **Location**: The example data follows the directory structure described in the *Directory Organization* section below (e.g., `nli_aug_data/snli_lr0.1_example/`).
+> - **For full-scale experiments**: We recommend generating augmented data using your preferred LLM backend as outlined in the *Metamorphic Augmentation* section.
+
 ## 🛠️ Environment Setup
 
 ### 1. Basic Environment
@@ -30,7 +41,7 @@ pip install transformers==4.29.2 scikit-learn==1.6.1 numpy==1.26.4 tqdm==4.67.1 
 
 
 ### 2. LLM Setup
-This project relies on Large Language Models  to generate metamorphic data. The code communicates with locally running LLM services (such as Ollama or LM Studio) via `LMstudio.py` by default.
+This project relies on Large Language Models to generate metamorphic data. The code communicates with locally running LLM services (such as Ollama or LM Studio) via `LMstudio.py` by default.
 
 1.  **Install and run Ollama** (or other local services compatible with the OpenAI API format).
 2.  **Pull the model**: e.g., `llama-3-8b`.
@@ -59,6 +70,13 @@ python NLImain.py --dataset_name snli --model_name bert-base-uncased --epochs 10
 python NLImain.py --dataset_name snli --use_data_augmentation --labeled_ratio 0.1
 ```
 
+#### Training with Provided Example Data (No LLM Required)
+If you wish to bypass LLM-based data generation and use the pre-uploaded cropped SNLI example:
+```bash
+python NLImain.py --dataset_name snli --labeled_ratio 0.1 --use_example_data
+```
+> **Note**: Ensure the example data directory (e.g., `nli_aug_data/snli_lr0.1_example/`) is correctly configured in `NLIdataset.py` as described below.
+
 #### Alternative Entrypoints (Optional)
 In addition to `NLImain.py`, you can also run experiments via:
 
@@ -75,6 +93,7 @@ These scripts are optional alternatives for some experiment workflows and testin
 *   `--dataset_name`: The name of the NLI dataset to use (e.g., `snli`, `mnli`). Default is `snli`.
 *   `--model_name`: The Hugging Face pre-trained model identifier (e.g., `bert-base-uncased`).
 *   `--llm_model_name`: The name of the Large Language Model used for generating metamorphic samples.
+*   `--use_example_data`: *(Optional)* Flag to use the provided cropped SNLI example data instead of triggering LLM-based generation.
 
 **Training Hyperparameters**
 *   `--epochs`: Total number of training epochs. Default is `25`.
@@ -117,6 +136,8 @@ When you run `NLImain.py` with `--use_data_augmentation` for the first time:
 4.  **Ensure your LLM service (e.g., Ollama) is running** before starting the training script.
 5.  Generated data is saved locally and will be reused in subsequent runs.
 
+> **Tip**: To skip the automatic generation step during initial testing, use the provided cropped example data as described in the *Example Dataset* section above.
+
 ## 📂 Directory Organization
 
 To ensure the code runs correctly, please organize your files as follows or update the paths in the code accordingly.
@@ -128,7 +149,8 @@ MTrain/
 ├── MRAugment.py
 ├── ... (other python scripts)
 ├── nli_dataset_cache/      <-- Cache for HuggingFace datasets
-├── nli_aug_data/           <-- Storage for augmented data
+├── nli_aug_data/           <-- Storage for augmented data (including provided example)
+│   └── snli_lr0.1_example/ <-- Cropped SNLI example subset (provided)
 └── nli_saved_model/        <-- Default path for saving trained models
 ```
 
@@ -143,6 +165,9 @@ DEFAULT_AUG_ROOT = "./nli_aug_data"
 
 # Change this to your desired path for caching datasets
 cache_dir = "./nli_dataset_cache"
+
+# (Optional) Specify the example data subdirectory if using provided cropped data
+EXAMPLE_DATA_SUBDIR = "snli_lr0.1_example"
 ```
 
 ### Dataset JSON Format and Location
@@ -160,10 +185,14 @@ Expected subdirectory naming rule:
 {dataset_name}_lr{labeled_ratio}_{llm_model_name}
 ```
 
-Example:
-
+Example (LLM-generated):
 ```text
 nli_aug_data/snli_lr0.1_llama-3-8b/
+```
+
+Example (provided cropped subset):
+```text
+nli_aug_data/snli_lr0.1_example/
 ```
 
 Expected JSON files in that directory include:
