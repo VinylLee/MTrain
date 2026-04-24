@@ -4,7 +4,11 @@ This repository contains the implementation of Metamorphic Training for Natural 
 
 > **⚠️ Disclaimer**
 >
-> The code in this repository is currently a research prototype and may appear disorganized, containing many experimental scripts and temporary files, deprecated code, legacy versions, duplicated implementations, and unused experimental scripts. Please treat the codebase as a prototype and prioritize the main pipeline files described below when reproducing results. We plan to refactor and clean up the codebase comprehensively after the paper is accepted. Thank you for your understanding. 
+> The code in this repository is currently a research prototype and may appear disorganized, containing many experimental scripts and temporary files, deprecated code, legacy versions, duplicated implementations, and unused experimental scripts. Please treat the codebase as a prototype and prioritize the main pipeline files described below when reproducing results. We plan to refactor and clean up the codebase comprehensively after the paper is accepted. Thank you for your understanding.
+
+> **⚠️ Path Configuration Notice**
+>
+> Some paths in this project may be hardcoded in the scripts, especially in `new_run.py`, `NLIdataset.py`, and related dataset-loading code. Before running any experiment, please carefully check that all dataset paths, cache paths, model paths, and output paths match your local environment.
 
 ## 🛠️ Environment Setup
 
@@ -45,25 +49,168 @@ PORT = 1234  # or 11434 for Ollama
 MODEL = "llama-3-8b"
 ```
 
+> If you only want to train with the provided cropped SNLI example dataset, you do **not** need to generate new data with an LLM.
+
 ## 🚀 Quick Start
 
-### Training
+### Recommended Entry Point: `new_run.py`
 
-The main entry point is `NLImain.py`. You can control the training process via command-line arguments.
-
-#### Basic Training Example
+For most users, especially when using the provided cropped SNLI example dataset, we recommend using:
 
 ```bash
-python NLImain.py --dataset_name snli --model_name bert-base-uncased --epochs 10
+python new_run.py
 ```
 
-#### Training with Data Augmentation
+`new_run.py` is the recommended experiment runner because it directly loads prepared JSON or JSONL data files, runs the training pipeline with a fixed configuration dictionary, saves experiment outputs, and avoids accidentally triggering time-consuming LLM-based data generation.
+
+Before running it, open `new_run.py` and modify the `config` section near the bottom of the file.
+
+> **Important:** Some paths in `new_run.py` may still be absolute or hardcoded. Please confirm that `train_data_path`, `val_data_path`, `augmented_dir`, `save_model_dir`, and any dataset list paths are correct before running the code.
+
+For the provided cropped SNLI example dataset, use a configuration similar to the following:
+
+```python
+config = {
+    # Use prepared JSON files directly.
+    # This is recommended for the provided cropped SNLI example dataset.
+    'use_augmented_data': False,
+
+    # Path to the prepared training file.
+    'train_data_path': './nli_arg_data/snli_lr0.0037_phi-4/augmented_data_三合一.json',
+
+    # Path to the validation file.
+    'val_data_path': './nli_arg_data/snli_lr0.0037_phi-4/validation.json',
+
+    # Dataset information
+    'dataset_name': 'snli',
+    'labeled_ratio': 0.0037,
+    'unlabeled_ratio': 0.2,
+    'augmented_dir': './nli_arg_data/snli_lr0.0037_phi-4/',
+    'llm_model_name': 'phi-4',
+
+    # Model configuration
+    'model_name': 'bert-base-uncased',
+    'max_length': 128,
+    'dropout_rate': 0.3,
+
+    # Training configuration
+    'batch_size': 16,
+    'learning_rate': 2e-5,
+    'weight_decay': 1e-2,
+    'warmup_ratio': 0.06,
+
+    # Device configuration
+    # 0: cuda:0
+    # 1: cuda:1
+    # -1: automatically use cuda if available, otherwise cpu
+    # You can also use strings such as 'cpu', 'cuda', or 'cuda:0'
+    'device': -1,
+
+    # Model saving configuration
+    'save_best_model': True,
+    'save_model_dir': None,
+
+    # Reproducibility
+    'random_seed': 42,
+    'shuffle': False,
+    'deterministic': True,
+
+    # Experiment epochs
+    'baseline_epochs': 0,
+    'mr_epochs': 0,
+    'full_epochs': 20,
+    'ablation_epochs': 0,
+}
+```
+
+Then make sure the dataset lists in `new_run.py` also point to the provided example data:
+
+```python
+train_datasets = [
+    './nli_arg_data/snli_lr0.0037_phi-4/augmented_data_三合一.json'
+]
+
+test_dataset = [
+    './nli_arg_data/snli_lr0.0037_phi-4/validation.json'
+]
+```
+
+If the script still uses the variable name `test_dataset`, you can keep the variable name but point it to `validation.json`:
+
+```python
+test_dataset = [
+    './nli_arg_data/snli_lr0.0037_phi-4/validation.json'
+]
+```
+
+If you prefer to use the default augmented file instead, you can also set:
+
+```python
+train_datasets = [
+    './nli_arg_data/snli_lr0.0037_phi-4/augmented_data.json'
+]
+```
+
+After modifying the paths, run:
+
+```bash
+python new_run.py
+```
+
+### Difference Between `new_run.py` and `NLImain.py`
+
+Both `new_run.py` and `NLImain.py` can be used for NLI training, but they serve different purposes.
+
+#### `new_run.py`
+
+`new_run.py` is a configuration-based experiment runner. It is recommended when you already have prepared JSON or JSONL data files.
+
+Main characteristics:
+
+* Directly loads prepared data from `train_data_path` and `val_data_path`.
+* Supports JSON and JSONL input files.
+* Does not require command-line arguments.
+* Does not need to generate new data with an LLM when `use_augmented_data=False`.
+* Creates an experiment directory under `experiments/`.
+* Saves experiment results, summaries, data analysis files, and training curves.
+* Supports random seed control for reproducibility.
+* Supports warmup and linear learning-rate scheduling.
+* Supports enhanced training strategies such as R-Drop-based training on augmented data.
+* Provides more explicit control over model saving, device selection, and experiment configuration.
+
+For the provided cropped SNLI example dataset, `new_run.py` is the preferred way to run training because the data has already been prepared.
+
+#### `NLImain.py`
+
+`NLImain.py` is the original command-line entry point. It is useful when you want to run the default pipeline through command-line arguments.
+
+Example:
 
 ```bash
 python NLImain.py --dataset_name snli --use_data_augmentation --labeled_ratio 0.0037 --llm_model_name phi-4
 ```
 
-#### Alternative Entrypoints (Optional)
+However, when `--use_data_augmentation` is enabled, `NLImain.py` may check for augmented data and trigger LLM-based data generation if the expected files are not found. This can take a long time and requires the local LLM service to be running.
+
+Therefore, for the provided cropped SNLI example dataset, we recommend using `new_run.py` with explicit file paths instead of relying on automatic data detection.
+
+## Training with `NLImain.py`
+
+The main command-line entry point is `NLImain.py`. You can control the training process via command-line arguments.
+
+### Basic Training Example
+
+```bash
+python NLImain.py --dataset_name snli --model_name bert-base-uncased --epochs 10
+```
+
+### Training with Data Augmentation
+
+```bash
+python NLImain.py --dataset_name snli --use_data_augmentation --labeled_ratio 0.0037 --llm_model_name phi-4
+```
+
+### Alternative Entrypoints
 
 In addition to `NLImain.py`, you can also run experiments via:
 
@@ -72,45 +219,9 @@ python new_run.py
 python new_test.py
 ```
 
-These scripts are optional alternatives for some experiment workflows and testing scenarios.
+Among these, `new_run.py` is recommended for prepared example datasets.
 
-#### Detailed Arguments Explanation
-
-**Dataset & Model Configuration**
-
-* `--dataset_name`: The name of the NLI dataset to use, e.g., `snli`, `mnli`. Default is `snli`.
-* `--model_name`: The Hugging Face pre-trained model identifier, e.g., `bert-base-uncased`.
-* `--llm_model_name`: The name of the Large Language Model used for generating metamorphic samples.
-
-**Training Hyperparameters**
-
-* `--epochs`: Total number of training epochs. Default is `25`.
-* `--learning_rate`: The learning rate for optimization. Default is `1e-5`.
-* `--batch_size`: The batch size for training and evaluation. Default is `32`.
-
-**Data Management**
-
-* `--labeled_ratio`: The proportion of the training set to treat as labeled data, e.g., `0.0037` for 0.37%.
-* `--unlabeled_ratio`: The proportion of the training set to treat as unlabeled data.
-* `--val_ratio`: The proportion of data to use for validation if not using the original validation set.
-* `--used_original_val`: Flag to use the official validation set from the dataset. Default is `True`.
-* `--use_data_augmentation`: Flag to enable Metamorphic Data Augmentation during training.
-
-**Training Strategies**
-
-* `--progressive_training`: Enables progressive training where the model is trained in stages or with curriculum learning.
-* `--unlabeled_first_training`: Enables a strategy where the model is first trained on unlabeled data, e.g., via consistency loss, before labeled data.
-* `--only_unlabeled`: Experimental flag to train using *only* unlabeled data.
-
-**Execution & Hardware**
-
-* `--only_test`: If set, skips training and only runs evaluation. Requires `--model_load_path`.
-* `--model_save_path`: Custom path to save the trained model.
-* `--model_load_path`: Path to a checkpoint to load for testing or resuming training.
-* `--device`: Compute device to use, such as `cpu`, `cuda`, `cuda:0`, or `auto`.
-* `--gpu`: Specific GPU ID to use, e.g., `0`, `1`.
-
-### Metamorphic Augmentation
+## Metamorphic Augmentation
 
 The core data augmentation logic is located in `MRAugment.py`. This module defines various Metamorphic Relations (MRs), such as:
 
@@ -120,7 +231,7 @@ The core data augmentation logic is located in `MRAugment.py`. This module defin
 
 These functions generate augmented samples by calling LLMs via prompt engineering.
 
-#### ⚠️ Automatic Data Generation
+### ⚠️ Automatic Data Generation
 
 When you run `NLImain.py` with `--use_data_augmentation` for the first time:
 
@@ -130,7 +241,9 @@ When you run `NLImain.py` with `--use_data_augmentation` for the first time:
 4. **Ensure your LLM service, e.g., Ollama, is running** before starting the training script.
 5. Generated or prepared data is saved locally and will be reused in subsequent runs. If the required JSON files already exist, such as the provided cropped SNLI example data, the code will load them directly instead of regenerating them.
 
-#### ✅ Using the Provided Cropped SNLI Example Dataset
+If you want to avoid LLM-based generation, use `new_run.py` with explicit paths to the prepared example files.
+
+### ✅ Using the Provided Cropped SNLI Example Dataset
 
 We have also provided an example dataset for `snli` to help users run the training pipeline without generating data from scratch.
 
@@ -142,19 +255,49 @@ The provided cropped SNLI example dataset is located at:
 MetTrain/nli_arg_data/snli_lr0.0037_phi-4/
 ```
 
-If you do not want to use an LLM to generate metamorphic data yourself, you can directly use the provided cropped SNLI example dataset for training. Make sure `NLIdataset.py` points to the correct data root:
+For this example dataset, we recommend using `new_run.py`.
+
+Recommended command:
+
+```bash
+python new_run.py
+```
+
+Recommended training path in `new_run.py`:
+
+```python
+'train_data_path': './nli_arg_data/snli_lr0.0037_phi-4/augmented_data_三合一.json'
+```
+
+Recommended validation path:
+
+```python
+'val_data_path': './nli_arg_data/snli_lr0.0037_phi-4/validation.json'
+```
+
+If you prefer to use `augmented_data.json` as the training file, replace the training path with:
+
+```python
+'train_data_path': './nli_arg_data/snli_lr0.0037_phi-4/augmented_data.json'
+```
+
+Using `new_run.py` with `use_augmented_data=False` directly loads these local files and avoids triggering LLM-based data generation.
+
+Before running, please confirm that the paths in `new_run.py` actually match your local repository structure. Some paths in the original scripts may be hardcoded as absolute paths, such as `/home/ubuntu/...`, and should be changed to your own local paths or relative paths.
+
+If you still want to use `NLImain.py`, make sure `NLIdataset.py` points to the correct data root:
 
 ```python
 DEFAULT_AUG_ROOT = "./nli_arg_data"
 ```
 
-Then run training with arguments matching the example-data directory name:
+Then run:
 
 ```bash
 python NLImain.py --dataset_name snli --use_data_augmentation --labeled_ratio 0.0037 --llm_model_name phi-4
 ```
 
-When the required JSON files already exist under `MetTrain/nli_arg_data/snli_lr0.0037_phi-4/`, the code will load the prepared data directly instead of triggering LLM-based generation.
+When the required JSON files already exist under `MetTrain/nli_arg_data/snli_lr0.0037_phi-4/`, the code should load the prepared data directly instead of triggering LLM-based generation.
 
 ## 📂 Directory Organization
 
@@ -165,22 +308,47 @@ To ensure the code runs correctly, please organize your files as follows or upda
 ```text
 MetTrain/
 ├── NLImain.py
+├── new_run.py
 ├── MRAugment.py
 ├── ... (other python scripts)
 ├── nli_dataset_cache/      <-- Cache for Hugging Face datasets
 ├── nli_arg_data/           <-- Provided cropped SNLI example data
 │   └── snli_lr0.0037_phi-4/
-│       ├── labeled_data.json
-│       ├── unlabeled_data.json
 │       ├── augmented_data.json
+│       ├── augmented_data_三合一.json
+│       ├── labeled_data.json
 │       ├── test.json
+│       ├── unlabeled_data.json
 │       └── validation.json
+├── experiments/            <-- Experiment outputs generated by new_run.py
 └── nli_saved_model/        <-- Default path for saving trained models
 ```
 
 ### ⚠️ Important Configuration Note
 
-Currently, some paths are hardcoded in `NLIdataset.py`. Before running the code, please open `NLIdataset.py` and modify the following variables to match your local environment:
+Currently, some paths may be hardcoded in the code. Before running experiments, please check the following.
+
+If you use `new_run.py`, update the paths in the `config`, `train_datasets`, and validation dataset list sections:
+
+```python
+'train_data_path': './nli_arg_data/snli_lr0.0037_phi-4/augmented_data_三合一.json'
+'val_data_path': './nli_arg_data/snli_lr0.0037_phi-4/validation.json'
+'augmented_dir': './nli_arg_data/snli_lr0.0037_phi-4/'
+```
+
+If the original code contains absolute paths such as:
+
+```python
+'/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/...'
+```
+
+please replace them with paths that match your own local environment, for example:
+
+```python
+'./nli_arg_data/snli_lr0.0037_phi-4/validation.json'
+```
+
+If you use `NLImain.py`, open `NLIdataset.py` and modify the following variables to match your local environment:
 
 ```python
 # In NLIdataset.py
@@ -193,9 +361,9 @@ DEFAULT_AUG_ROOT = "./nli_arg_data"
 cache_dir = "./nli_dataset_cache"
 ```
 
-### Dataset JSON Format and Location
+## Dataset JSON Format and Location
 
-If you use local prepared data, dataset files should be stored in **JSON format** under the augmented-data directory expected by `NLIdataset.py`.
+If you use local prepared data, dataset files should be stored in **JSON format** under the augmented-data directory expected by the training code.
 
 For the provided cropped SNLI example dataset, the root directory should be:
 
@@ -215,45 +383,75 @@ The provided cropped SNLI example follows this structure:
 MetTrain/nli_arg_data/snli_lr0.0037_phi-4/
 ```
 
-Expected JSON files in that directory include:
+Expected JSON files may include:
 
-* `labeled_data.json`
-* `unlabeled_data.json`
 * `augmented_data.json`
+* `augmented_data_三合一.json`
+* `labeled_data.json`
 * `test.json`
+* `unlabeled_data.json`
 * `validation.json`
 
-#### Provided SNLI Example Data
+### Required Fields
 
-This repository includes a cropped SNLI example dataset following the same JSON format above.
+The training and evaluation data should contain at least the following fields:
 
-The original SNLI source dataset is not uploaded because it exceeds the file upload size limit. Therefore, we provide a cropped version that can be used as an example for quickly running and testing the training pipeline.
+* `premise`
+* `hypothesis`
+* `label`
 
-If you do not want to generate metamorphic data with an LLM, you can use this provided cropped SNLI data directly. Please ensure that:
+For augmented or metamorphic training, additional fields may be used:
 
-1. The JSON files are placed under `MetTrain/nli_arg_data/snli_lr0.0037_phi-4/`.
-2. `DEFAULT_AUG_ROOT` in `NLIdataset.py` is set to `./nli_arg_data`.
-3. The command-line arguments match the directory name:
+* `pair_id`
+* `is_syn`
+* `mr_type`
+* `weight`
 
-```bash
-python NLImain.py --dataset_name snli --use_data_augmentation --labeled_ratio 0.0037 --llm_model_name phi-4
+`new_run.py` will automatically load the specified JSON or JSONL file and convert it into a Hugging Face `Dataset`.
+
+## Output Files from `new_run.py`
+
+When using `new_run.py`, the script creates an experiment directory under:
+
+```text
+experiments/
 ```
 
-If your data is not placed in this structure, update `DEFAULT_AUG_ROOT` and related path settings in `NLIdataset.py` before running training.
+The directory name is generated from the data folder name, data file name, and current timestamp.
 
-### Model Storage
+Typical output files include:
 
-* **Pre-trained Models**: By default, the code uses Hugging Face's `AutoModel` which downloads models to the default Hugging Face cache, `~/.cache/huggingface`. You can also specify a local path using `--model_name`.
-* **Trained Checkpoints**: Trained models will be saved to `nli_saved_model/{dataset_name}/{model_name}/` by default, unless `--model_save_path` is specified.
+* `data_analysis.json`: Basic statistics of the training data.
+* `augment_training_curves.json`: Training loss, validation loss, validation accuracy, and parameter histories.
+* `experiment_results_*.json`: Full experiment configuration and results.
+* `summary.txt`: Short summary of the experiment results.
+* Saved model directories such as:
+  * `augment_training_best`
+  * `final_model`
+
+If `save_model_dir` is set to `None`, models are saved inside the generated experiment directory. If you want to save models elsewhere, set:
+
+```python
+'save_model_dir': './saved_models'
+```
+
+## Model Storage
+
+* **Pre-trained Models**: By default, the code uses Hugging Face's `AutoModel` which downloads models to the default Hugging Face cache, `~/.cache/huggingface`. You can also specify a local path using `--model_name` or the `model_name` field in `new_run.py`.
+* **Trained Checkpoints**: Trained models will be saved to the experiment directory by `new_run.py`, or to `nli_saved_model/{dataset_name}/{model_name}/` by default in other training scripts, unless a custom save path is specified.
 
 ## 📂 Project Structure
 
-* `NLImain.py`: Main entry point, handling argument parsing and flow control.
+* `NLImain.py`: Original command-line entry point, handling argument parsing and the default training flow.
+* `new_run.py`: Recommended configuration-based experiment runner, especially for prepared JSON or JSONL datasets.
 * `MRAugment.py`: **Core file**, implementing various LLM-based metamorphic relation generation logic.
 * `NLItrain.py` / `NLI_train_stage.py`: Contains training loops and specific training strategies, e.g., metamorphic relation loss functions.
+* `NLI_train_one_epoch.py`: Contains one-epoch training functions used by `new_run.py`, including CE training, dual consistency training, multi-signal training, and R-Drop-style training.
 * `NLIdataset.py`: Dataset loading and preprocessing.
 * `NLImodel.py`: Model definition.
+* `NLItest.py`: Evaluation utilities for NLI tasks.
 * `LMstudio.py`: Interface responsible for communicating with the LLM backend.
+* `seed_checker.py`: Utilities for random seed setting and reproducibility checking.
 * `metamorphic_training_usage.py`: Example showing how to integrate metamorphic training into the code.
 
 ## 📝 Citation
