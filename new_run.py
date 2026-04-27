@@ -1131,7 +1131,7 @@ if __name__ == "__main__":
         'train_data_path':
         '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/snli_lr0.0037_phi-4/augmented_data_三合一filter0.88.json',
         'val_data_path':
-        '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/snli_lr0.0037_phi-4/test.json',
+        '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/snli_lr0.0037_phi-4/validation.json',
 
         # 方式2：使用NLIDataset参数（如果use_augmented_data=True）
         'dataset_name': 'snli',
@@ -1187,18 +1187,18 @@ if __name__ == "__main__":
         '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/snli_lr0.0037_llama-3.2-3b-instruct/augmented_data.json'
     ]
     test_dataset = [
-        # '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlim_lr0.0051_phi-4/test.json',
-        '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/snli_lr0.0037_phi-4/test.json',
-        # '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/rte_lr1.0_phi-4/test.json'
-        # '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/sick_lr1.0_phi-4/test.json'
-        # '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlim_lr0.0013_phi-4/test.json',
-        # # '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlim_lr0.0013_phi-4/test.json',
-        # # '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlim_lr0.0013_phi-4/test.json',
-        # "/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlimm_lr0.0013_phi-4/test.json",
-        # # "/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlimm_lr0.0013_phi-4/test.json",
-        # # "/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlimm_lr0.0013_phi-4/test.json",
-        # "/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/rte_lr0.4_phi-4/test.json",
-        # "/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/sick_lr1.0_phi-4/test.json",
+        # '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlim_lr0.0051_phi-4/validation.json',
+        '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/snli_lr0.0037_phi-4/validation.json',
+        # '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/rte_lr1.0_phi-4/validation.json'
+        # '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/sick_lr1.0_phi-4/validation.json'
+        # '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlim_lr0.0013_phi-4/validation.json',
+        # # '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlim_lr0.0013_phi-4/validation.json',
+        # # '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlim_lr0.0013_phi-4/validation.json',
+        # "/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlimm_lr0.0013_phi-4/validation.json",
+        # # "/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlimm_lr0.0013_phi-4/validation.json",
+        # # "/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlimm_lr0.0013_phi-4/validation.json",
+        # "/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/rte_lr0.4_phi-4/validation.json",
+        # "/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/sick_lr1.0_phi-4/validation.json",
     ]
 
     # config['val_data_path'] = test_dataset[0]
