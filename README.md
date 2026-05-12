@@ -39,23 +39,23 @@ pip install transformers==4.29.2 scikit-learn==1.6.1 numpy==1.26.4 tqdm==4.67.1 
 This project relies on Large Language Models to generate metamorphic data. The code communicates with locally running LLM services, such as Ollama or LM Studio, via `LMstudio.py` by default.
 
 1. **Install and run Ollama** or other local services compatible with the OpenAI API format.
-2. **Pull the model**, e.g., `llama-3-8b`.
+2. **Pull the model**, e.g., `gemma-e-4b-it-qat`.
 3. **Configure connection**: Check the `HOST`, `PORT`, and `MODEL` variables in `LMstudio.py` to ensure they point to your local service.
 
 ```python
 # Example configuration in LMstudio.py
 HOST = "localhost"
 PORT = 1234  # or 11434 for Ollama
-MODEL = "llama-3-8b"
+MODEL = "gemma-e-4b-it-qat"
 ```
 
-> If you only want to train with the provided cropped SNLI example dataset, you do **not** need to generate new data with an LLM.
+> If you only want to train with the provided  RTE example dataset, you do **not** need to generate new data with an LLM.
 
 ## 🚀 Quick Start
 
 ### Recommended Entry Point: `new_run.py`
 
-For most users, especially when using the provided cropped SNLI example dataset, we recommend using:
+For most users, especially when using the provided  RTE example dataset, we recommend using:
 
 ```bash
 python new_run.py
@@ -67,26 +67,26 @@ Before running it, open `new_run.py` and modify the `config` section near the bo
 
 > **Important:** Some paths in `new_run.py` may still be absolute or hardcoded. Please confirm that `train_data_path`, `val_data_path`, `augmented_dir`, `save_model_dir`, and any dataset list paths are correct before running the code.
 
-For the provided cropped SNLI example dataset, use a configuration similar to the following:
+For the provided RTE example dataset, use a configuration similar to the following:
 
 ```python
 config = {
     # Use prepared JSON files directly.
-    # This is recommended for the provided cropped SNLI example dataset.
+    # This is recommended for the provided  RTE example dataset.
     'use_augmented_data': False,
 
     # Path to the prepared training file.
-    'train_data_path': './nli_arg_data/snli_lr0.0037_phi-4/augmented_data_三合一.json',
+    'train_data_path': '/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/augmented_data.json',
 
     # Path to the validation file.
-    'val_data_path': './nli_arg_data/snli_lr0.0037_phi-4/validation.json',
+    'val_data_path': '/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/validation.json',
 
     # Dataset information
-    'dataset_name': 'snli',
-    'labeled_ratio': 0.0037,
+    'dataset_name': 'rte',
+    'labeled_ratio': 0.8,
     'unlabeled_ratio': 0.2,
-    'augmented_dir': './nli_arg_data/snli_lr0.0037_phi-4/',
-    'llm_model_name': 'phi-4',
+    'augmented_dir': '/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/',
+    'llm_model_name': 'gemma-e-4b-it-qat',
 
     # Model configuration
     'model_name': 'bert-base-uncased',
@@ -127,11 +127,11 @@ Then make sure the dataset lists in `new_run.py` also point to the provided exam
 
 ```python
 train_datasets = [
-    './nli_arg_data/snli_lr0.0037_phi-4/augmented_data_三合一.json'
+    '/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/augmented_data.json'
 ]
 
 test_dataset = [
-    './nli_arg_data/snli_lr0.0037_phi-4/validation.json'
+    '/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/validation.json'
 ]
 ```
 
@@ -139,7 +139,7 @@ If you prefer to use the default augmented file instead, you can also set:
 
 ```python
 train_datasets = [
-    './nli_arg_data/snli_lr0.0037_phi-4/augmented_data.json'
+    '/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/augmented_data.json'
 ]
 ```
 
@@ -159,7 +159,7 @@ Both `new_run.py` and `NLImain.py` can be used for NLI training, but they serve 
 
 Main characteristics:
 
-* Directly loads prepared data from `train_data_path` and `test_data_path`.
+* Directly loads prepared data from `train_data_path` and `val_data_path`.
 * Supports JSON and JSONL input files.
 * Does not require command-line arguments.
 * Does not need to generate new data with an LLM when `use_augmented_data=False`.
@@ -170,7 +170,7 @@ Main characteristics:
 * Supports enhanced training strategies such as R-Drop-based training on augmented data.
 * Provides more explicit control over model saving, device selection, and experiment configuration.
 
-For the provided cropped SNLI example dataset, `new_run.py` is the preferred way to run training because the data has already been prepared.
+For the provided  RTE example dataset, `new_run.py` is the preferred way to run training because the data has already been prepared.
 
 #### `NLImain.py`
 
@@ -179,12 +179,12 @@ For the provided cropped SNLI example dataset, `new_run.py` is the preferred way
 Example:
 
 ```bash
-python NLImain.py --dataset_name snli --use_data_augmentation --labeled_ratio 0.0037 --llm_model_name phi-4
+python NLImain.py --dataset_name rte --use_data_augmentation --labeled_ratio 0.8 --llm_model_name gemma-e-4b-it-qat
 ```
 
 However, when `--use_data_augmentation` is enabled, `NLImain.py` may check for augmented data and trigger LLM-based data generation if the expected files are not found. This can take a long time and requires the local LLM service to be running.
 
-Therefore, for the provided cropped SNLI example dataset, we recommend using `new_run.py` with explicit file paths instead of relying on automatic data detection.
+Therefore, for the provided  RTE example dataset, we recommend using `new_run.py` with explicit file paths instead of relying on automatic data detection.
 
 ## Training with `NLImain.py`
 
@@ -193,13 +193,13 @@ The main command-line entry point is `NLImain.py`. You can control the training 
 ### Basic Training Example
 
 ```bash
-python NLImain.py --dataset_name snli --model_name bert-base-uncased --epochs 10
+python NLImain.py --dataset_name rte --model_name bert-base-uncased --epochs 10
 ```
 
 ### Training with Data Augmentation
 
 ```bash
-python NLImain.py --dataset_name snli --use_data_augmentation --labeled_ratio 0.0037 --llm_model_name phi-4
+python NLImain.py --dataset_name rte --use_data_augmentation --labeled_ratio 0.8 --llm_model_name gemma-e-4b-it-qat
 ```
 
 ### Alternative Entrypoints
@@ -231,20 +231,20 @@ When you run `NLImain.py` with `--use_data_augmentation` for the first time:
 2. If not found, it **automatically triggers the generation process** using the configured LLM.
 3. **This process can take a significant amount of time** depending on your dataset size and LLM inference speed.
 4. **Ensure your LLM service, e.g., Ollama, is running** before starting the training script.
-5. Generated or prepared data is saved locally and will be reused in subsequent runs. If the required JSON files already exist, such as the provided cropped SNLI example data, the code will load them directly instead of regenerating them.
+5. Generated or prepared data is saved locally and will be reused in subsequent runs. If the required JSON files already exist, such as the provided  RTE example data, the code will load them directly instead of regenerating them.
 
 If you want to avoid LLM-based generation, use `new_run.py` with explicit paths to the prepared example files.
 
-### ✅ Using the Provided Cropped SNLI Example Dataset
+### ✅ Using the Provided RTE Example Dataset
 
-We have also provided an example dataset for `snli` to help users run the training pipeline without generating data from scratch.
+We have also provided an example dataset for `rte` to help users run the training pipeline without generating data from scratch.
 
-Due to file upload size limitations, the full original SNLI source dataset could not be uploaded to this repository. Instead, we provide a **cropped version** of the SNLI-based prepared data as a runnable example.
+Due to file upload size limitations, the full original RTE source dataset could not be uploaded to this repository. Instead, we provide a version of the RTE-based prepared data as a runnable example.
 
-The provided cropped SNLI example dataset is located at:
+The provided  RTE example dataset is located at:
 
 ```text
-MetTrain/nli_arg_data/snli_lr0.0037_phi-4/
+/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/
 ```
 
 For this example dataset, we recommend using `new_run.py`.
@@ -258,19 +258,19 @@ python new_run.py
 Recommended training path in `new_run.py`:
 
 ```python
-'train_data_path': './nli_arg_data/snli_lr0.0037_phi-4/augmented_data_三合一.json'
+'train_data_path': '/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/augmented_data.json'
 ```
 
 Recommended validation path:
 
 ```python
-'test_data_path': './nli_arg_data/snli_lr0.0037_phi-4/validation.json'
+'val_data_path': '/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/validation.json'
 ```
 
 If you prefer to use `augmented_data.json` as the training file, replace the training path with:
 
 ```python
-'train_data_path': './nli_arg_data/snli_lr0.0037_phi-4/augmented_data.json'
+'train_data_path': '/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/augmented_data.json'
 ```
 
 Using `new_run.py` with `use_augmented_data=False` directly loads these local files and avoids triggering LLM-based data generation.
@@ -280,16 +280,16 @@ Before running, please confirm that the paths in `new_run.py` actually match you
 If you still want to use `NLImain.py`, make sure `NLIdataset.py` points to the correct data root:
 
 ```python
-DEFAULT_AUG_ROOT = "./nli_arg_data"
+DEFAULT_AUG_ROOT = "/nli_arg_data"
 ```
 
 Then run:
 
 ```bash
-python NLImain.py --dataset_name snli --use_data_augmentation --labeled_ratio 0.0037 --llm_model_name phi-4
+python NLImain.py --dataset_name rte --use_data_augmentation --labeled_ratio 0.8 --llm_model_name gemma-e-4b-it-qat
 ```
 
-When the required JSON files already exist under `MetTrain/nli_arg_data/snli_lr0.0037_phi-4/`, the code should load the prepared data directly instead of triggering LLM-based generation.
+When the required JSON files already exist under `/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/`, the code should load the prepared data directly instead of triggering LLM-based generation.
 
 ## 📂 Directory Organization
 
@@ -304,10 +304,10 @@ MetTrain/
 ├── MRAugment.py
 ├── ... (other python scripts)
 ├── nli_dataset_cache/      <-- Cache for Hugging Face datasets
-├── nli_arg_data/           <-- Provided cropped SNLI example data
-│   └── snli_lr0.0037_phi-4/
+├── nli_arg_data/           <-- Provided  RTE example data
+│   └── rte_lr0.8_gemma-e-4b-it-qat/
 │       ├── augmented_data.json
-│       ├── augmented_data_三合一.json
+│       ├── augmented_data.json
 │       ├── labeled_data.json
 │       ├── test.json
 │       ├── unlabeled_data.json
@@ -324,9 +324,9 @@ Currently, some paths may be hardcoded in the code. Before running experiments, 
 If you use `new_run.py`, update the paths in the `config`, `train_datasets`, and validation dataset list sections:
 
 ```python
-'train_data_path': './nli_arg_data/snli_lr0.0037_phi-4/augmented_data_三合一.json'
-'val_data_path': './nli_arg_data/snli_lr0.0037_phi-4/validation.json'
-'augmented_dir': './nli_arg_data/snli_lr0.0037_phi-4/'
+'train_data_path': '/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/augmented_data.json'
+'val_data_path': '/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/validation.json'
+'augmented_dir': '/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/'
 ```
 
 If the original code contains absolute paths such as:
@@ -338,7 +338,7 @@ If the original code contains absolute paths such as:
 please replace them with paths that match your own local environment, for example:
 
 ```python
-'./nli_arg_data/snli_lr0.0037_phi-4/validation.json'
+'/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/validation.json'
 ```
 
 If you use `NLImain.py`, open `NLIdataset.py` and modify the following variables to match your local environment:
@@ -347,8 +347,8 @@ If you use `NLImain.py`, open `NLIdataset.py` and modify the following variables
 # In NLIdataset.py
 
 # Change this to your desired path for storing augmented/prepared data.
-# For the provided cropped SNLI example dataset, use:
-DEFAULT_AUG_ROOT = "./nli_arg_data"
+# For the provided  RTE example dataset, use:
+DEFAULT_AUG_ROOT = "/nli_arg_data"
 
 # Change this to your desired path for caching datasets
 cache_dir = "./nli_dataset_cache"
@@ -358,10 +358,10 @@ cache_dir = "./nli_dataset_cache"
 
 If you use local prepared data, dataset files should be stored in **JSON format** under the augmented-data directory expected by the training code.
 
-For the provided cropped SNLI example dataset, the root directory should be:
+For the provided  RTE example dataset, the root directory should be:
 
 ```text
-MetTrain/nli_arg_data/
+/nli_arg_data/
 ```
 
 Expected subdirectory naming rule:
@@ -370,16 +370,16 @@ Expected subdirectory naming rule:
 {dataset_name}_lr{labeled_ratio}_{llm_model_name}
 ```
 
-The provided cropped SNLI example follows this structure:
+The provided  RTE example follows this structure:
 
 ```text
-MetTrain/nli_arg_data/snli_lr0.0037_phi-4/
+/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/
 ```
 
 Expected JSON files may include:
 
 * `augmented_data.json`
-* `augmented_data_三合一.json`
+* `augmented_data.json`
 * `labeled_data.json`
 * `test.json`
 * `unlabeled_data.json`
