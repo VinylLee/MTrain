@@ -2,7 +2,7 @@
 
 This repository contains the implementation of Metamorphic Training for Natural Language Inference (NLI) tasks. This project utilizes Large Language Models (LLMs) to generate Metamorphic samples for augmenting training data and unlabeled data to leverage improving model performance.
 
-> **⚠️ Disclaimer**
+> **⚠️ Notice**
 >
 > The code in this repository is currently a research prototype and may appear disorganized, containing many experimental scripts and temporary files, deprecated code, legacy versions, duplicated implementations, and unused experimental scripts. Please treat the codebase as a prototype and prioritize the main pipeline files described below when reproducing results. We plan to refactor and clean up the codebase comprehensively after the paper is accepted. Thank you for your understanding.
 
