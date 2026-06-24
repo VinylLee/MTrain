@@ -862,8 +862,10 @@ class MultiSignalExperiment:
                 val_losses.append(float("inf"))
                 val_accs.append(0.0)
             else:
+                # 对RTE应用二分类映射 (contradiction→not_entailment)
+                rte_label_map = {2: 1} if self.config.get('dataset_name') == 'rte' else None
                 val_results = test_nli(model_instance, self.NLImodel.tokenizer,
-                                       self.val_dataset)
+                                       self.val_dataset, label_map=rte_label_map)
 
                 # 获取验证损失和准确率
                 avg_val_loss = val_results.get('loss', float("inf"))
@@ -1123,23 +1125,19 @@ if __name__ == "__main__":
 
     # 实验配置
     config = {
-        # 数据配置 - 可以选择使用预处理好的JSON文件或NLIDataset接口
-        'use_augmented_data':
-        False,  # 如果True，则使用NLIDataset接口；如果False，使用指定的JSON文件
+        # 数据配置 - 使用预处理好的JSON文件
+        'use_augmented_data': False,
 
-        # 方式1：使用JSON文件路径（推荐用于你的已有数据）
-        'train_data_path':
-        '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/snli_lr0.0037_phi-4/augmented_data_三合一filter0.88.json',
-        'val_data_path':
-        '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/snli_lr0.0037_phi-4/validation.json',
+        # 使用RTE示例数据路径
+        'train_data_path': '/home/ubuntu/WoYaoFaA/MetTrain/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/augmented_data.json',
+        'val_data_path': '/home/ubuntu/WoYaoFaA/MetTrain/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/validation.json',
 
-        # 方式2：使用NLIDataset参数（如果use_augmented_data=True）
-        'dataset_name': 'snli',
-        'labeled_ratio': 0.0037,
+        # 数据集信息
+        'dataset_name': 'rte',
+        'labeled_ratio': 0.8,
         'unlabeled_ratio': 0.2,
-        'augmented_dir':
-        '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/snli_lr0.0037_phi-4/',
-        'llm_model_name': 'phi-4',
+        'augmented_dir': '/home/ubuntu/WoYaoFaA/MetTrain/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/',
+        'llm_model_name': 'gemma-e-4b-it-qat',
 
         # 模型配置
         'model_name': 'bert-base-uncased',
@@ -1152,20 +1150,19 @@ if __name__ == "__main__":
         'weight_decay': 1e-2,
         'warmup_ratio': 0.06,
 
-        # 设备配置
-        'device': 1,  # 0: cuda:0, 1: cuda:1, -1: cuda (auto), others: cpu
+        # 设备配置 - 使用cuda:0
+        'device': 0,
 
-        # 模型保存配置
-        'save_best_model': True,  # 是否保存最佳模型（True: 保存, False: 不保存）
-        'save_model_dir': None,  # 模型保存目录，如果为None则使用默认实验目录
-        # 示例: '/home/ubuntu/MTrain/MTrainNLI/saved_models'
+        # 模型保存配置（为省空间设为False，如需要可改为True）
+        'save_best_model': False,
+        'save_model_dir': None,
 
         # 随机种子配置
-        'random_seed': 42,  # 随机种子值
-        'shuffle': False,  # 是否在加载数据时打乱顺序
-        'deterministic': True,  # 是否启用确定性模式（可能影响性能但确保可重现性）
+        'random_seed': 42,
+        'shuffle': False,
+        'deterministic': True,
 
-        # 实验轮数
+        # 实验轮数 - 仅运行完整的多信号联合损失训练
         'baseline_epochs': 0,
         'mr_epochs': 0,
         'full_epochs': 20,
@@ -1173,32 +1170,10 @@ if __name__ == "__main__":
     }
 
     train_datasets = [
-        # '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/snli_lr0.0037_phi-4/augmented_data.json',
-        # '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/snli_lr0.0037_phi-4/augmented_data_三合一_0.8.json',
-        # "/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlim_lr0.0051_phi-4/augmented_data.json",
-        # "/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlimm_lr0.0051_phi-4/augmented_data.json",
-        # "/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/rte_lr0.8_phi-4/augmented_data.json",
-        # "/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/sick_lr1.0_phi-4/augmented_data.json",
-        # "/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/snli_lr0.0136_llama-3.2-3b-instruct/augmented_data copy.json",
-        # "/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlim_lr0.0051_phi-4/augmented_data_三合一.json"  # 效果更好
-        # '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlim_lr0.0051_phi-4/augmented_data_三合一_0.8.json'
-        # '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/rte_lr1.0_phi-4/labeled_data.json'
-        # '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/sick_lr1.0_phi-4/labeled_data.json'
-        '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/snli_lr0.0037_llama-3.2-3b-instruct/augmented_data.json'
+        '/home/ubuntu/WoYaoFaA/MetTrain/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/augmented_data.json'
     ]
     test_dataset = [
-        # '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlim_lr0.0051_phi-4/validation.json',
-        '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/snli_lr0.0037_phi-4/validation.json',
-        # '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/rte_lr1.0_phi-4/validation.json'
-        # '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/sick_lr1.0_phi-4/validation.json'
-        # '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlim_lr0.0013_phi-4/validation.json',
-        # # '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlim_lr0.0013_phi-4/validation.json',
-        # # '/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlim_lr0.0013_phi-4/validation.json',
-        # "/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlimm_lr0.0013_phi-4/validation.json",
-        # # "/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlimm_lr0.0013_phi-4/validation.json",
-        # # "/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/mnlimm_lr0.0013_phi-4/validation.json",
-        # "/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/rte_lr0.4_phi-4/validation.json",
-        # "/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/sick_lr1.0_phi-4/validation.json",
+        '/home/ubuntu/WoYaoFaA/MetTrain/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/validation.json'
     ]
 
     # config['val_data_path'] = test_dataset[0]

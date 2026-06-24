@@ -185,7 +185,7 @@ class NLIModel:
         model_name: str = "bert-base-uncased",
         *,
         num_labels: int = 3,
-        cache_dir: str = "/home/ubuntu/MTrain/MTrainNLI/nli_model_cache",
+        cache_dir: str = "/home/ubuntu/WoYaoFaA/MetTrain/nli_model_cache",
         criterion: Optional[Callable] = None,
         loss_kwargs: Optional[Dict[str, Any]] = None,
         local_files_only: bool = False,

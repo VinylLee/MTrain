@@ -1,0 +1,13 @@
+# 忽略实验输出和相关数据
+# 忽略仓库中任何名为 experiments 的目录及其内容
+experiments/
+nli_model_cache/
+ckpt_base/
+**/experiments/
+__pycache__/
+
+# 忽略所有 PDF 文件
+*.pdf
+**/*.pdf
+
+# 本文件由助理更新，已记录用户偏好：忽略实验信息与 PDF 文件

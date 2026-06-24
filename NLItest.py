@@ -19,7 +19,8 @@ def test_nli(model,
              tokenizer,
              test_dataset,
              batch_size: int = 16,
-             label_smoothing: float = 0.0):
+             label_smoothing: float = 0.0,
+             label_map: dict = None):
     """
     测试NLI模型的函数
     -----------------
@@ -83,6 +84,9 @@ def test_nli(model,
             n_items += labels.size(0)
 
             pred = torch.argmax(logits, dim=-1).cpu().numpy()
+            # 应用标签映射（如RTE二分类：将contradiction(2)映射为not_entailment(1)）
+            if label_map:
+                pred = [label_map.get(p, p) for p in pred]
             preds.extend(pred)
             gold_labels.extend(labels.cpu().numpy())
 
