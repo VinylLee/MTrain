@@ -5,6 +5,7 @@ nli_model_cache/
 ckpt_base/
 **/experiments/
 __pycache__/
+old/
 
 # 忽略所有 PDF 文件
 *.pdf
