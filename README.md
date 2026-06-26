@@ -1,27 +1,26 @@
 # MetTrain
 
-This repository contains the implementation of Metamorphic Training for Natural Language Inference (NLI) tasks. This project utilizes Large Language Models (LLMs) to generate Metamorphic samples for augmenting training data and unlabeled data to leverage improving model performance.
-
+This repository contains the implementation of Metamorphic Training for Natural Language Inference (NLI) tasks. This project utilizes Large Language Models (LLMs) to generate Metamorphic samples for augmenting training data and unlabeled data to improve model performance.
 > **⚠️ Notice**
 >
-> The code in this repository is currently a research prototype and may appear disorganized, containing many experimental scripts and temporary files, deprecated code, legacy versions, duplicated implementations, and unused experimental scripts. Please treat the codebase as a prototype and prioritize the main pipeline files described below when reproducing results. We plan to refactor and clean up the codebase comprehensively after the paper is accepted. Thank you for your understanding.
+> This repository is a research prototype that has been refactored for clarity. The main pipeline files described below are the recommended starting point for reproduction. Thank you for your understanding.
 
 > **⚠️ Path Configuration Notice**
 >
-> Some paths in this project may be hardcoded in the scripts, especially in `new_run.py`, `NLIdataset.py`, and related dataset-loading code. Before running any experiment, please carefully check that all dataset paths, cache paths, model paths, and output paths match your local environment.
+> Some paths in this project may be hardcoded in the scripts, especially in `NLIdataset.py` and related dataset-loading code. Before running any experiment, please carefully check that all dataset paths, cache paths, model paths, and output paths match your local environment.
 
 ## 🛠️ Environment Setup
 
 ### 1. Basic Environment
 
-Please ensure that Python 3.8+ is installed.
+Please ensure that Python 3.9+ is installed.
 
 The project is developed using **PyTorch 1.12.1** with **CUDA 11.3**. While newer versions may work, we recommend using the specified versions for reproducibility.
 
 You can install all dependencies using the provided requirements file:
 
 ```bash
-pip install -r requirements-backup.txt
+pip install -r requirements.txt
 ```
 
 Alternatively, you can install the key dependencies manually:
@@ -31,22 +30,22 @@ Alternatively, you can install the key dependencies manually:
 pip install torch==1.12.1+cu113 torchvision==0.13.1+cu113 torchaudio==0.12.1+cu113 --extra-index-url https://download.pytorch.org/whl/cu113
 
 # Install other key dependencies
-pip install transformers==4.29.2 scikit-learn==1.6.1 numpy==1.26.4 tqdm==4.67.1 pandas==2.2.3 openai==1.75.0 ollama==0.4.8 matplotlib==3.9.4 seaborn==0.13.2
+pip install transformers==4.29.2 datasets==3.5.0 scikit-learn==1.6.1 numpy==1.26.4 tqdm==4.67.1 pandas==2.2.3 openai==1.75.0 ollama==0.4.8 matplotlib==3.9.4 seaborn==0.13.2
 ```
 
 ### 2. LLM Setup
 
 This project relies on Large Language Models to generate metamorphic data. The code communicates with locally running LLM services, such as Ollama or LM Studio, via `LMstudio.py` by default.
 
-1. **Install and run Ollama** or other local services compatible with the OpenAI API format.
-2. **Pull the model**, e.g., `gemma-e-4b-it-qat`.
+1. **Install and run LM Studio** or other local services compatible with the OpenAI API format.
+2. **Pull the model**, e.g., `gemma-3-4b-it-qat`.
 3. **Configure connection**: Check the `HOST`, `PORT`, and `MODEL` variables in `LMstudio.py` to ensure they point to your local service.
 
 ```python
 # Example configuration in LMstudio.py
 HOST = "localhost"
 PORT = 1234  # or 11434 for Ollama
-MODEL = "gemma-e-4b-it-qat"
+MODEL = "gemma-3-4b-it-qat"
 ```
 
 > If you only want to train with the provided  RTE example dataset, you do **not** need to generate new data with an LLM.
@@ -76,17 +75,17 @@ config = {
     'use_augmented_data': False,
 
     # Path to the prepared training file.
-    'train_data_path': '/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/augmented_data.json',
+    'train_data_path': '/path/to/your/MetTrain/nli_arg_data/rte_lr0.8_gemma-3-4b-it-qat/augmented_data.json',
 
     # Path to the validation file.
-    'val_data_path': '/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/validation.json',
+    'val_data_path': '/path/to/your/MetTrain/nli_arg_data/rte_lr0.8_gemma-3-4b-it-qat/validation.json',
 
     # Dataset information
     'dataset_name': 'rte',
     'labeled_ratio': 0.8,
     'unlabeled_ratio': 0.2,
-    'augmented_dir': '/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/',
-    'llm_model_name': 'gemma-e-4b-it-qat',
+    'augmented_dir': '/path/to/your/MetTrain/nli_arg_data/rte_lr0.8_gemma-3-4b-it-qat/',
+    'llm_model_name': 'gemma-3-4b-it-qat',
 
     # Model configuration
     'model_name': 'bert-base-uncased',
@@ -127,11 +126,11 @@ Then make sure the dataset lists in `new_run.py` also point to the provided exam
 
 ```python
 train_datasets = [
-    '/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/augmented_data.json'
+    '/path/to/your/MetTrain/nli_arg_data/rte_lr0.8_gemma-3-4b-it-qat/augmented_data.json'
 ]
 
 test_dataset = [
-    '/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/validation.json'
+    '/path/to/your/MetTrain/nli_arg_data/rte_lr0.8_gemma-3-4b-it-qat/validation.json'
 ]
 ```
 
@@ -139,7 +138,7 @@ If you prefer to use the default augmented file instead, you can also set:
 
 ```python
 train_datasets = [
-    '/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/augmented_data.json'
+    '/path/to/your/MetTrain/nli_arg_data/rte_lr0.8_gemma-3-4b-it-qat/augmented_data.json'
 ]
 ```
 
@@ -179,7 +178,7 @@ For the provided  RTE example dataset, `new_run.py` is the preferred way to run 
 Example:
 
 ```bash
-python NLImain.py --dataset_name rte --use_data_augmentation --labeled_ratio 0.8 --llm_model_name gemma-e-4b-it-qat
+python NLImain.py --dataset_name rte --use_data_augmentation --labeled_ratio 0.8 --llm_model_name gemma-3-4b-it-qat
 ```
 
 However, when `--use_data_augmentation` is enabled, `NLImain.py` may check for augmented data and trigger LLM-based data generation if the expected files are not found. This can take a long time and requires the local LLM service to be running.
@@ -199,7 +198,7 @@ python NLImain.py --dataset_name rte --model_name bert-base-uncased --epochs 10
 ### Training with Data Augmentation
 
 ```bash
-python NLImain.py --dataset_name rte --use_data_augmentation --labeled_ratio 0.8 --llm_model_name gemma-e-4b-it-qat
+python NLImain.py --dataset_name rte --use_data_augmentation --labeled_ratio 0.8 --llm_model_name gemma-3-4b-it-qat
 ```
 
 ### Alternative Entrypoints
@@ -213,28 +212,6 @@ python new_test.py
 
 Among these, `new_run.py` is recommended for prepared example datasets.
 
-## Metamorphic Augmentation
-
-The core data augmentation logic is located in `MRAugment.py`. This module defines various Metamorphic Relations (MRs), such as:
-
-* **Invariant**: Synonym replacement (`mr_synonym_replacement`), voice switch (`mr_voice_switch`), etc.
-* **Flip**: Negation flip (`mr_negation_flip`), antonym substitution (`mr_antonym_substitution`), etc.
-* **Neutral**: Adding uninformative information (`mr_uninformative`), etc.
-
-These functions generate augmented samples by calling LLMs via prompt engineering.
-
-### ⚠️ Automatic Data Generation
-
-When you run `NLImain.py` with `--use_data_augmentation` for the first time:
-
-1. The code checks if augmented data exists in the configured augmented-data directory.
-2. If not found, it **automatically triggers the generation process** using the configured LLM.
-3. **This process can take a significant amount of time** depending on your dataset size and LLM inference speed.
-4. **Ensure your LLM service, e.g., Ollama, is running** before starting the training script.
-5. Generated or prepared data is saved locally and will be reused in subsequent runs. If the required JSON files already exist, such as the provided  RTE example data, the code will load them directly instead of regenerating them.
-
-If you want to avoid LLM-based generation, use `new_run.py` with explicit paths to the prepared example files.
-
 ### ✅ Using the Provided RTE Example Dataset
 
 We have also provided an example dataset for `rte` to help users run the training pipeline without generating data from scratch.
@@ -244,7 +221,7 @@ Due to file upload size limitations, the full original RTE source dataset could 
 The provided  RTE example dataset is located at:
 
 ```text
-/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/
+MetTrain/nli_arg_data/rte_lr0.8_gemma-3-4b-it-qat/
 ```
 
 For this example dataset, we recommend using `new_run.py`.
@@ -258,38 +235,38 @@ python new_run.py
 Recommended training path in `new_run.py`:
 
 ```python
-'train_data_path': '/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/augmented_data.json'
+'train_data_path': 'nli_arg_data/rte_lr0.8_gemma-3-4b-it-qat/augmented_data.json'
 ```
 
 Recommended validation path:
 
 ```python
-'val_data_path': '/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/validation.json'
+'val_data_path': 'nli_arg_data/rte_lr0.8_gemma-3-4b-it-qat/validation.json'
 ```
 
 If you prefer to use `augmented_data.json` as the training file, replace the training path with:
 
 ```python
-'train_data_path': '/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/augmented_data.json'
+'train_data_path': 'nli_arg_data/rte_lr0.8_gemma-3-4b-it-qat/augmented_data.json'
 ```
 
 Using `new_run.py` with `use_augmented_data=False` directly loads these local files and avoids triggering LLM-based data generation.
 
-Before running, please confirm that the paths in `new_run.py` actually match your local repository structure. Some paths in the original scripts may be hardcoded as absolute paths, such as `/home/ubuntu/...`, and should be changed to your own local paths or relative paths.
+Before running, please confirm that the paths in `new_run.py` actually match your local repository structure. Some paths in the original scripts may be hardcoded and should be changed to your own local paths or relative paths.
 
-If you still want to use `NLImain.py`, make sure `NLIdataset.py` points to the correct data root:
+> **Note:** `NLImain.py` is the old CLI entry point. The recommended approach is to use `new_run.py`. If you still wish to use `NLImain.py`, make sure `NLIdataset.py` points to the correct data root:
 
 ```python
-DEFAULT_AUG_ROOT = "/nli_arg_data"
+DEFAULT_AUG_ROOT = "/path/to/your/MetTrain/nli_arg_data"
 ```
 
 Then run:
 
 ```bash
-python NLImain.py --dataset_name rte --use_data_augmentation --labeled_ratio 0.8 --llm_model_name gemma-e-4b-it-qat
+python NLImain.py --dataset_name rte --use_data_augmentation --labeled_ratio 0.8 --llm_model_name gemma-3-4b-it-qat
 ```
 
-When the required JSON files already exist under `/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/`, the code should load the prepared data directly instead of triggering LLM-based generation.
+When the required JSON files already exist under `MetTrain/nli_arg_data/rte_lr0.8_gemma-3-4b-it-qat/`, the code should load the prepared data directly instead of triggering LLM-based generation.
 
 ## 📂 Directory Organization
 
@@ -299,22 +276,33 @@ To ensure the code runs correctly, please organize your files as follows or upda
 
 ```text
 MetTrain/
-├── NLImain.py
-├── new_run.py
-├── MRAugment.py
-├── ... (other python scripts)
-├── nli_dataset_cache/      <-- Cache for Hugging Face datasets
-├── nli_arg_data/           <-- Provided  RTE example data
-│   └── rte_lr0.8_gemma-e-4b-it-qat/
-│       ├── augmented_data.json
-│       ├── augmented_data.json
-│       ├── labeled_data.json
-│       ├── test.json
-│       ├── unlabeled_data.json
-│       └── validation.json
-├── experiments/            <-- Experiment outputs generated by new_run.py
-├── nli_saved_model/        <-- Default path for saving trained models
-└── nli_model_cache/        <-- Default path for HuggingFace models
+├── README.md
+├── requirements.txt               # Python dependencies
+├── mylogging.py                   # Logging configuration
+├── LMstudio.py                    # LLM API client
+├── seed_checker.py                # Reproducibility utilities
+├── scoring.py                     # Scoring & quality filtering
+├── NLIutils.py                    # Back-translation & similarity tools
+├── NLImodel.py                    # Model definition
+├── NLIdataset.py                  # Data loading & preprocessing
+├── NLI_collate_fn.py               # DataLoader collation
+├── NLItest.py                     # Evaluation (accuracy, F1, MRV)
+├── NLItrain.py                    # Training main loop
+├── NLI_train_one_epoch.py          # Single-epoch training (CE, R-Drop, etc.)
+├── NLI_train_stage.py              # Training stage orchestration
+├── MRAugment.py                   # MR/CMR definitions & LLM generation
+├── LabeledEnhance.py              # Data augmentation pipeline
+├── new_run.py                     # Recommended experiment runner
+├── new_test.py                    # Batch evaluation script
+├── bare_jrnl_new_sample4.pdf      # Paper manuscript
+├── nli_arg_data/                  # Provided RTE example dataset
+│   └── rte_lr0.8_gemma-3-4b-it-qat/
+│       ├── augmented_data.json    # Original + metamorphic samples (~5.1k)
+│       ├── labeled_data.json      # Original labeled data (~2k)
+│       ├── test.json              # Test set
+│       └── validation.json        # Validation set
+├── nli_model_cache/               # HuggingFace model cache
+├── experiments/                   # Experiment outputs (generated at runtime)
 ```
 
 ### ⚠️ Important Configuration Note
@@ -324,45 +312,30 @@ Currently, some paths may be hardcoded in the code. Before running experiments, 
 If you use `new_run.py`, update the paths in the `config`, `train_datasets`, and validation dataset list sections:
 
 ```python
-'train_data_path': '/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/augmented_data.json'
-'val_data_path': '/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/validation.json'
-'augmented_dir': '/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/'
+'train_data_path': '/path/to/your/MetTrain/nli_arg_data/rte_lr0.8_gemma-3-4b-it-qat/augmented_data.json'
+'val_data_path': '/path/to/your/MetTrain/nli_arg_data/rte_lr0.8_gemma-3-4b-it-qat/validation.json'
+'augmented_dir': '/path/to/your/MetTrain/nli_arg_data/rte_lr0.8_gemma-3-4b-it-qat/'
 ```
 
-If the original code contains absolute paths such as:
+The original code used absolute paths such as `/home/ubuntu/MTrain/`. These have been largely updated, but please confirm they match your local setup before running.
 
-```python
-'/home/ubuntu/MTrain/MTrainNLI/nli_aug_data/...'
-```
-
-please replace them with paths that match your own local environment, for example:
-
-```python
-'/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/validation.json'
-```
-
-If you use `NLImain.py`, open `NLIdataset.py` and modify the following variables to match your local environment:
+If you use `NLImain.py` (deprecated), open `NLIdataset.py` and modify the following variables to match your local environment:
 
 ```python
 # In NLIdataset.py
 
 # Change this to your desired path for storing augmented/prepared data.
-# For the provided  RTE example dataset, use:
-DEFAULT_AUG_ROOT = "/nli_arg_data"
+DEFAULT_AUG_ROOT = "/path/to/your/MetTrain/nli_arg_data"
 
 # Change this to your desired path for caching datasets
-cache_dir = "./nli_dataset_cache"
+cache_dir = "./nli_model_cache"
 ```
 
 ## Dataset JSON Format and Location
 
 If you use local prepared data, dataset files should be stored in **JSON format** under the augmented-data directory expected by the training code.
 
-For the provided  RTE example dataset, the root directory should be:
-
-```text
-/nli_arg_data/
-```
+For the provided RTE example dataset, the root directory should be the `nli_arg_data` folder in your local copy.
 
 Expected subdirectory naming rule:
 
@@ -370,19 +343,18 @@ Expected subdirectory naming rule:
 {dataset_name}_lr{labeled_ratio}_{llm_model_name}
 ```
 
-The provided  RTE example follows this structure:
+The provided RTE example follows this structure:
 
 ```text
-/nli_arg_data/rte_lr0.8_gemma-e-4b-it-qat/
+nli_arg_data/rte_lr0.8_gemma-3-4b-it-qat/
 ```
 
-Expected JSON files may include:
+The example data includes:
 
-* `augmented_data.json`
-* `augmented_data.json`
-* `labeled_data.json`
-* `test.json`
-* `unlabeled_data.json`
+* `augmented_data.json`   # Original + metamorphic samples (~5.1k)
+* `labeled_data.json`     # Original labeled data (~2k)
+* `test.json`             # Test set
+* `validation.json`       # Validation set
 * `validation.json`
 
 ### Required Fields
@@ -405,21 +377,3 @@ For augmented or metamorphic training, additional fields may be used:
 ## Model Storage
 
 * **Pre-trained Models**: By default, the code uses Hugging Face's Model which downloads models to `nli_model_cache`. You can also specify a local path using `--model_name` or the `model_name` field in `new_run.py`.
-
-## 📂 Project Structure
-
-* `NLImain.py`: Original command-line entry point, handling argument parsing and the default training flow.
-* `new_run.py`: Recommended configuration-based experiment runner, especially for prepared JSON or JSONL datasets.
-* `MRAugment.py`: **Core file**, implementing various LLM-based metamorphic relation generation logic.
-* `NLItrain.py` / `NLI_train_stage.py`: Contains training loops and specific training strategies, e.g., metamorphic relation loss functions.
-* `NLI_train_one_epoch.py`: Contains one-epoch training functions used by `new_run.py`, including CE training, dual consistency training, multi-signal training, and R-Drop-style training.
-* `NLIdataset.py`: Dataset loading and preprocessing.
-* `NLImodel.py`: Model definition.
-* `NLItest.py`: Evaluation utilities for NLI tasks.
-* `LMstudio.py`: Interface responsible for communicating with the LLM backend.
-* `seed_checker.py`: Utilities for random seed setting and reproducibility checking.
-* `metamorphic_training_usage.py`: Example showing how to integrate metamorphic training into the code.
-
-## 📝 Citation
-
-If this code is helpful for your research, please cite our work after the paper is published. (To be added)
