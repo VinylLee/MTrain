@@ -1,0 +1,35 @@
+{
+  "data": "nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/augmented_data_v2_final.json",
+  "deterministic": {
+    "source_file_count": 2033,
+    "row_count": 2813,
+    "original_rows": 2033,
+    "synthetic_rows": 780,
+    "label_counts": {
+      "entailment": 930,
+      "neutral": 959,
+      "contradiction": 924
+    },
+    "mr_counts": {
+      "composite_flip_v2": 271,
+      "composite_inv_v2": 196,
+      "composite_neutral_v2": 313
+    },
+    "mr_type_counts": {
+      "flip": 271,
+      "inv": 196,
+      "neutral": 313
+    },
+    "exact_duplicate_synthetic_rows": 0,
+    "duplicate_nli_triples": 0,
+    "unchanged_from_source": 0,
+    "missing_source_pair_id": 0,
+    "prompt_artifacts": 0,
+    "hypothesis_words": {
+      "min": 3,
+      "median": 8,
+      "p95": 17,
+      "max": 25
+    }
+  }
+}

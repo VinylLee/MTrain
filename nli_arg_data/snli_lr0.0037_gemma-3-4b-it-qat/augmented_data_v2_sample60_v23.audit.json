@@ -1,0 +1,75 @@
+{
+  "data": "nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/augmented_data_v2_sample60_v23.json",
+  "deterministic": {
+    "source_file_count": 2033,
+    "row_count": 72,
+    "original_rows": 60,
+    "synthetic_rows": 12,
+    "label_counts": {
+      "entailment": 22,
+      "neutral": 27,
+      "contradiction": 23
+    },
+    "mr_counts": {
+      "composite_flip_v2": 3,
+      "composite_inv_v2": 2,
+      "composite_neutral_v2": 7
+    },
+    "mr_type_counts": {
+      "flip": 3,
+      "inv": 2,
+      "neutral": 7
+    },
+    "exact_duplicate_synthetic_rows": 0,
+    "duplicate_nli_triples": 0,
+    "unchanged_from_source": 0,
+    "missing_source_pair_id": 0,
+    "prompt_artifacts": 0,
+    "hypothesis_words": {
+      "min": 4,
+      "median": 13,
+      "p95": 17,
+      "max": 22
+    }
+  },
+  "judge_model": "gemma-3-4b-it-qat",
+  "review_output": "nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/augmented_data_v2_sample60_v23.review.jsonl",
+  "llm_review": {
+    "requested": 12,
+    "successfully_judged": 12,
+    "label_accuracy": 0.9167,
+    "grammatical_rate": 1.0,
+    "operation_valid_rate": 1.0,
+    "inv_source_equivalence_rate": 1.0,
+    "fully_accepted_rate": 0.9167,
+    "by_mr": {
+      "composite_flip_v2": {
+        "count": 3,
+        "label_accuracy": 1.0,
+        "grammatical_rate": 1.0,
+        "operation_valid_rate": 1.0,
+        "fully_accepted_rate": 1.0
+      },
+      "composite_inv_v2": {
+        "count": 2,
+        "label_accuracy": 1.0,
+        "grammatical_rate": 1.0,
+        "operation_valid_rate": 1.0,
+        "fully_accepted_rate": 1.0
+      },
+      "composite_neutral_v2": {
+        "count": 7,
+        "label_accuracy": 0.8571,
+        "grammatical_rate": 1.0,
+        "operation_valid_rate": 1.0,
+        "fully_accepted_rate": 0.8571
+      }
+    },
+    "quality_gates": {
+      "label_accuracy_gte_0.95": false,
+      "grammatical_rate_gte_0.95": true,
+      "inv_equivalence_gte_0.95": true,
+      "fully_accepted_rate_gte_0.90": true
+    }
+  }
+}

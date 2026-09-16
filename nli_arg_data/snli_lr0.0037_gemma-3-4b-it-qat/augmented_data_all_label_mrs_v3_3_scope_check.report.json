@@ -1,0 +1,95 @@
+{
+  "prompt_version": "snli-pair-aware-all-label-mrs-v3.3",
+  "source_count": 12,
+  "synthetic_count": 8,
+  "source_label_counts": {
+    "2": 4,
+    "0": 4,
+    "1": 4
+  },
+  "synthetic_label_counts": {
+    "2": 4,
+    "1": 4
+  },
+  "operation_results": {
+    "negation_flip": {
+      "attempted": 4,
+      "accepted": 3,
+      "acceptance_rate": 0.75
+    },
+    "antonym_substitution": {
+      "attempted": 0,
+      "accepted": 0,
+      "acceptance_rate": null
+    },
+    "adding_contradiction": {
+      "attempted": 0,
+      "accepted": 0,
+      "acceptance_rate": null
+    },
+    "pronoun_substitution": {
+      "attempted": 0,
+      "accepted": 0,
+      "acceptance_rate": null
+    },
+    "voice_switch": {
+      "attempted": 0,
+      "accepted": 0,
+      "acceptance_rate": null
+    },
+    "synonym_replacement": {
+      "attempted": 0,
+      "accepted": 0,
+      "acceptance_rate": null
+    },
+    "uninformative": {
+      "attempted": 4,
+      "accepted": 4,
+      "acceptance_rate": 1.0
+    },
+    "conditional_clause": {
+      "attempted": 0,
+      "accepted": 0,
+      "acceptance_rate": null
+    },
+    "composite_inv": {
+      "attempted": 0,
+      "accepted": 0,
+      "acceptance_rate": null
+    },
+    "composite_flip": {
+      "attempted": 4,
+      "accepted": 1,
+      "acceptance_rate": 0.25
+    },
+    "composite_neutral": {
+      "attempted": 0,
+      "accepted": 0,
+      "acceptance_rate": null
+    }
+  },
+  "duplicate_synthetic_rows": 0,
+  "input": "nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/labeled_data.json",
+  "output": "nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/augmented_data_all_label_mrs_v3_3_scope_check.json",
+  "generator_model": "gemma-3-4b-it-qat",
+  "judge_model": "gemma-3-4b-it-qat",
+  "label_mrs": [
+    "negation_flip",
+    "antonym_substitution",
+    "adding_contradiction",
+    "pronoun_substitution",
+    "voice_switch",
+    "synonym_replacement",
+    "uninformative",
+    "conditional_clause",
+    "composite_inv",
+    "composite_flip",
+    "composite_neutral"
+  ],
+  "seed": 42,
+  "candidate_count": 3,
+  "retries": 2,
+  "checkpoint_every": 1,
+  "resumed_source_count": 0,
+  "elapsed_seconds": 52.48
+}

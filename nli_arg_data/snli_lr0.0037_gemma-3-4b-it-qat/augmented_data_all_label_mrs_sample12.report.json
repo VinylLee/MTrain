@@ -1,0 +1,96 @@
+{
+  "prompt_version": "snli-pair-aware-all-label-mrs-v3.0",
+  "source_count": 12,
+  "synthetic_count": 32,
+  "source_label_counts": {
+    "2": 4,
+    "0": 4,
+    "1": 4
+  },
+  "synthetic_label_counts": {
+    "2": 16,
+    "0": 7,
+    "1": 9
+  },
+  "operation_results": {
+    "negation_flip": {
+      "attempted": 4,
+      "accepted": 2,
+      "acceptance_rate": 0.5
+    },
+    "antonym_substitution": {
+      "attempted": 4,
+      "accepted": 4,
+      "acceptance_rate": 1.0
+    },
+    "adding_contradiction": {
+      "attempted": 4,
+      "accepted": 4,
+      "acceptance_rate": 1.0
+    },
+    "pronoun_substitution": {
+      "attempted": 12,
+      "accepted": 4,
+      "acceptance_rate": 0.3333
+    },
+    "voice_switch": {
+      "attempted": 12,
+      "accepted": 1,
+      "acceptance_rate": 0.0833
+    },
+    "synonym_replacement": {
+      "attempted": 12,
+      "accepted": 3,
+      "acceptance_rate": 0.25
+    },
+    "uninformative": {
+      "attempted": 4,
+      "accepted": 4,
+      "acceptance_rate": 1.0
+    },
+    "conditional_clause": {
+      "attempted": 4,
+      "accepted": 2,
+      "acceptance_rate": 0.5
+    },
+    "composite_inv": {
+      "attempted": 12,
+      "accepted": 2,
+      "acceptance_rate": 0.1667
+    },
+    "composite_flip": {
+      "attempted": 4,
+      "accepted": 3,
+      "acceptance_rate": 0.75
+    },
+    "composite_neutral": {
+      "attempted": 4,
+      "accepted": 3,
+      "acceptance_rate": 0.75
+    }
+  },
+  "duplicate_synthetic_rows": 0,
+  "input": "nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/labeled_data.json",
+  "output": "nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/augmented_data_all_label_mrs_sample12.json",
+  "generator_model": "gemma-3-4b-it-qat",
+  "judge_model": "gemma-3-4b-it-qat",
+  "label_mrs": [
+    "negation_flip",
+    "antonym_substitution",
+    "adding_contradiction",
+    "pronoun_substitution",
+    "voice_switch",
+    "synonym_replacement",
+    "uninformative",
+    "conditional_clause",
+    "composite_inv",
+    "composite_flip",
+    "composite_neutral"
+  ],
+  "seed": 42,
+  "candidate_count": 3,
+  "retries": 2,
+  "checkpoint_every": 1,
+  "resumed_source_count": 0,
+  "elapsed_seconds": 329.75
+}

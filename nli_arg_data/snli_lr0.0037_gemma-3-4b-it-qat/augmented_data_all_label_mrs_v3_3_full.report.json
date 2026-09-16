@@ -1,0 +1,102 @@
+{
+  "prompt_version": "snli-pair-aware-all-label-mrs-v3.3",
+  "source_count": 2033,
+  "synthetic_count": 3307,
+  "source_label_counts": {
+    "0": 739,
+    "1": 644,
+    "2": 650
+  },
+  "synthetic_label_counts": {
+    "2": 948,
+    "0": 429,
+    "1": 1930
+  },
+  "operation_results": {
+    "negation_flip": {
+      "attempted": 717,
+      "accepted": 480,
+      "acceptance_rate": 0.6695
+    },
+    "antonym_substitution": {
+      "attempted": 368,
+      "accepted": 13,
+      "acceptance_rate": 0.0353
+    },
+    "adding_contradiction": {
+      "attempted": 723,
+      "accepted": 180,
+      "acceptance_rate": 0.249
+    },
+    "pronoun_substitution": {
+      "attempted": 2033,
+      "accepted": 355,
+      "acceptance_rate": 0.1746
+    },
+    "voice_switch": {
+      "attempted": 1119,
+      "accepted": 45,
+      "acceptance_rate": 0.0402
+    },
+    "synonym_replacement": {
+      "attempted": 2033,
+      "accepted": 33,
+      "acceptance_rate": 0.0162
+    },
+    "uninformative": {
+      "attempted": 1308,
+      "accepted": 1150,
+      "acceptance_rate": 0.8792
+    },
+    "conditional_clause": {
+      "attempted": 739,
+      "accepted": 565,
+      "acceptance_rate": 0.7645
+    },
+    "composite_inv": {
+      "attempted": 2033,
+      "accepted": 23,
+      "acceptance_rate": 0.0113
+    },
+    "composite_flip": {
+      "attempted": 723,
+      "accepted": 255,
+      "acceptance_rate": 0.3527
+    },
+    "composite_neutral": {
+      "attempted": 739,
+      "accepted": 208,
+      "acceptance_rate": 0.2815
+    }
+  },
+  "duplicate_synthetic_rows": 0,
+  "input": "nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/labeled_data.json",
+  "output": "nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/augmented_data_all_label_mrs_v3_3_full.json",
+  "generator_model": "gemma-3-4b-it-qat",
+  "judge_model": "gemma-3-4b-it-qat",
+  "label_mrs": [
+    "negation_flip",
+    "antonym_substitution",
+    "adding_contradiction",
+    "pronoun_substitution",
+    "voice_switch",
+    "synonym_replacement",
+    "uninformative",
+    "conditional_clause",
+    "composite_inv",
+    "composite_flip",
+    "composite_neutral"
+  ],
+  "seed": 42,
+  "candidate_count": 3,
+  "retries": 2,
+  "checkpoint_every": 10,
+  "workers": 8,
+  "min_total_rows": 5340,
+  "target_reached": true,
+  "fill_attempts": 569,
+  "fill_accepted": 431,
+  "fill_rounds_completed": 1,
+  "resumed_source_count": 50,
+  "elapsed_seconds": 65437.28
+}

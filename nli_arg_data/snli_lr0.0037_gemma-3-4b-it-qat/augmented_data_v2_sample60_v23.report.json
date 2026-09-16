@@ -1,0 +1,43 @@
+{
+  "prompt_version": "snli-pair-aware-v2.3",
+  "source_count": 60,
+  "synthetic_count": 12,
+  "source_label_counts": {
+    "1": 20,
+    "2": 20,
+    "0": 20
+  },
+  "synthetic_label_counts": {
+    "1": 7,
+    "0": 2,
+    "2": 3
+  },
+  "operation_results": {
+    "inv": {
+      "attempted": 59,
+      "accepted": 2,
+      "acceptance_rate": 0.0339
+    },
+    "flip": {
+      "attempted": 19,
+      "accepted": 3,
+      "acceptance_rate": 0.1579
+    },
+    "neutral": {
+      "attempted": 19,
+      "accepted": 7,
+      "acceptance_rate": 0.3684
+    }
+  },
+  "duplicate_synthetic_rows": 0,
+  "input": "nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/labeled_data.json",
+  "output": "nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/augmented_data_v2_sample60_v23.json",
+  "generator_model": "gemma-3-4b-it-qat",
+  "judge_model": "gemma-3-4b-it-qat",
+  "seed": 42,
+  "candidate_count": 3,
+  "retries": 2,
+  "checkpoint_every": 10,
+  "resumed_source_count": 60,
+  "elapsed_seconds": 0.0
+}

@@ -12,3 +12,19 @@ old/
 **/*.pdf
 
 # 本文件由助理更新，已记录用户偏好：忽略实验信息与 PDF 文件
+
+# ── 大体积 / 可由脚本重新生成的数据（不纳入版本控制）─────────────────
+# original_dataset/ 是第三方 NLI 原始数据（SNLI/MNLI/SICK），可重新下载。
+original_dataset/
+# mr_test_data* 是 generate_mr_test.py 的产物，可重新生成。
+# 其中 "mr_test_data_full copy/" 是 mr_test_data_full/ 的重复副本。
+mr_test_data/
+mr_test_data_full/
+mr_test_data_full copy/
+mr_test_data_merged/
+
+# 会话/工具临时状态
+.claude/
+
+# 注：nli_arg_data/ 刻意纳入版本控制 —— 它是增效数据生成产物与
+# generation_log.jsonl（component_mrs 溯源字段的唯一来源），属于不可重建的实验记录。

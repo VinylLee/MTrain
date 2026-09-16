@@ -1,0 +1,139 @@
+{
+  "data": "nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/augmented_data_all_label_mrs_v3_3_full.json",
+  "deterministic": {
+    "source_file_count": 2033,
+    "row_count": 5340,
+    "original_rows": 2033,
+    "synthetic_rows": 3307,
+    "label_counts": {
+      "entailment": 1168,
+      "neutral": 2574,
+      "contradiction": 1598
+    },
+    "mr_counts": {
+      "adding_contradiction": 180,
+      "antonym_substitution": 13,
+      "composite_flip": 255,
+      "composite_inv": 23,
+      "composite_neutral": 208,
+      "conditional_clause": 565,
+      "negation_flip": 480,
+      "pronoun_substitution": 355,
+      "synonym_replacement": 33,
+      "uninformative": 1150,
+      "voice_switch": 45
+    },
+    "mr_type_counts": {
+      "flip": 928,
+      "inv": 456,
+      "neutral": 1923
+    },
+    "exact_duplicate_synthetic_rows": 0,
+    "duplicate_nli_triples": 0,
+    "unchanged_from_source": 0,
+    "missing_source_pair_id": 0,
+    "prompt_artifacts": 0,
+    "hypothesis_words": {
+      "min": 3,
+      "median": 11,
+      "p95": 18,
+      "max": 30
+    }
+  },
+  "judge_model": "gemma-3-4b-it-qat",
+  "review_output": "nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/augmented_data_all_label_mrs_v3_3_full.quality_review.jsonl",
+  "llm_review": {
+    "requested": 110,
+    "successfully_judged": 110,
+    "label_accuracy": 0.9909,
+    "grammatical_rate": 1.0,
+    "operation_valid_rate": 1.0,
+    "inv_source_equivalence_rate": 0.9,
+    "fully_accepted_rate": 0.9545,
+    "by_mr": {
+      "adding_contradiction": {
+        "count": 10,
+        "label_accuracy": 1.0,
+        "grammatical_rate": 1.0,
+        "operation_valid_rate": 1.0,
+        "fully_accepted_rate": 1.0
+      },
+      "antonym_substitution": {
+        "count": 10,
+        "label_accuracy": 1.0,
+        "grammatical_rate": 1.0,
+        "operation_valid_rate": 1.0,
+        "fully_accepted_rate": 1.0
+      },
+      "composite_flip": {
+        "count": 10,
+        "label_accuracy": 1.0,
+        "grammatical_rate": 1.0,
+        "operation_valid_rate": 1.0,
+        "fully_accepted_rate": 1.0
+      },
+      "composite_inv": {
+        "count": 10,
+        "label_accuracy": 1.0,
+        "grammatical_rate": 1.0,
+        "operation_valid_rate": 1.0,
+        "fully_accepted_rate": 0.8
+      },
+      "composite_neutral": {
+        "count": 10,
+        "label_accuracy": 0.9,
+        "grammatical_rate": 1.0,
+        "operation_valid_rate": 1.0,
+        "fully_accepted_rate": 0.9
+      },
+      "conditional_clause": {
+        "count": 10,
+        "label_accuracy": 1.0,
+        "grammatical_rate": 1.0,
+        "operation_valid_rate": 1.0,
+        "fully_accepted_rate": 1.0
+      },
+      "negation_flip": {
+        "count": 10,
+        "label_accuracy": 1.0,
+        "grammatical_rate": 1.0,
+        "operation_valid_rate": 1.0,
+        "fully_accepted_rate": 1.0
+      },
+      "pronoun_substitution": {
+        "count": 10,
+        "label_accuracy": 1.0,
+        "grammatical_rate": 1.0,
+        "operation_valid_rate": 1.0,
+        "fully_accepted_rate": 0.9
+      },
+      "synonym_replacement": {
+        "count": 10,
+        "label_accuracy": 1.0,
+        "grammatical_rate": 1.0,
+        "operation_valid_rate": 1.0,
+        "fully_accepted_rate": 0.9
+      },
+      "uninformative": {
+        "count": 10,
+        "label_accuracy": 1.0,
+        "grammatical_rate": 1.0,
+        "operation_valid_rate": 1.0,
+        "fully_accepted_rate": 1.0
+      },
+      "voice_switch": {
+        "count": 10,
+        "label_accuracy": 1.0,
+        "grammatical_rate": 1.0,
+        "operation_valid_rate": 1.0,
+        "fully_accepted_rate": 1.0
+      }
+    },
+    "quality_gates": {
+      "label_accuracy_gte_0.95": true,
+      "grammatical_rate_gte_0.95": true,
+      "inv_equivalence_gte_0.95": false,
+      "fully_accepted_rate_gte_0.90": true
+    }
+  }
+}

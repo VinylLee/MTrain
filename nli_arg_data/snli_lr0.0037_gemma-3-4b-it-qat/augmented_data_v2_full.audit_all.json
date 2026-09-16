@@ -1,0 +1,75 @@
+{
+  "data": "nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/augmented_data_v2_full.json",
+  "deterministic": {
+    "source_file_count": 2033,
+    "row_count": 2819,
+    "original_rows": 2033,
+    "synthetic_rows": 786,
+    "label_counts": {
+      "entailment": 931,
+      "neutral": 960,
+      "contradiction": 928
+    },
+    "mr_counts": {
+      "composite_flip_v2": 271,
+      "composite_inv_v2": 201,
+      "composite_neutral_v2": 314
+    },
+    "mr_type_counts": {
+      "flip": 271,
+      "inv": 201,
+      "neutral": 314
+    },
+    "exact_duplicate_synthetic_rows": 0,
+    "duplicate_nli_triples": 0,
+    "unchanged_from_source": 0,
+    "missing_source_pair_id": 0,
+    "prompt_artifacts": 0,
+    "hypothesis_words": {
+      "min": 3,
+      "median": 8,
+      "p95": 17,
+      "max": 25
+    }
+  },
+  "judge_model": "gemma-3-4b-it-qat",
+  "review_output": "nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/augmented_data_v2_full.review_all.jsonl",
+  "llm_review": {
+    "requested": 786,
+    "successfully_judged": 786,
+    "label_accuracy": 0.9771,
+    "grammatical_rate": 1.0,
+    "operation_valid_rate": 1.0,
+    "inv_source_equivalence_rate": 0.9701,
+    "fully_accepted_rate": 0.9695,
+    "by_mr": {
+      "composite_flip_v2": {
+        "count": 271,
+        "label_accuracy": 0.9963,
+        "grammatical_rate": 1.0,
+        "operation_valid_rate": 1.0,
+        "fully_accepted_rate": 0.9963
+      },
+      "composite_inv_v2": {
+        "count": 201,
+        "label_accuracy": 1.0,
+        "grammatical_rate": 1.0,
+        "operation_valid_rate": 1.0,
+        "fully_accepted_rate": 0.9701
+      },
+      "composite_neutral_v2": {
+        "count": 314,
+        "label_accuracy": 0.9459,
+        "grammatical_rate": 1.0,
+        "operation_valid_rate": 1.0,
+        "fully_accepted_rate": 0.9459
+      }
+    },
+    "quality_gates": {
+      "label_accuracy_gte_0.95": true,
+      "grammatical_rate_gte_0.95": true,
+      "inv_equivalence_gte_0.95": true,
+      "fully_accepted_rate_gte_0.90": true
+    }
+  }
+}

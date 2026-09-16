@@ -1,0 +1,23 @@
+2026-09-10 16:12:11 +0800 pid=3364757 state=running output_rows=256 generation_log_rows=631 output_mtime=2026-09-10 16:02:49.056592363 +0800
+2026-09-10 16:12:43 +0800 pid=3364757 state=running output_rows=256 generation_log_rows=631 output_mtime=2026-09-10 16:02:49.056592363 +0800
+2026-09-10 17:12:43 +0800 pid=3364757 state=running output_rows=620 generation_log_rows=1506 output_mtime=2026-09-10 17:10:17.359439068 +0800
+2026-09-10 18:12:43 +0800 pid=3364757 state=running output_rows=994 generation_log_rows=2444 output_mtime=2026-09-10 18:11:43.261035102 +0800
+2026-09-10 19:12:44 +0800 pid=3364757 state=running output_rows=1364 generation_log_rows=3373 output_mtime=2026-09-10 19:12:25.607286127 +0800
+2026-09-10 20:12:44 +0800 pid=3364757 state=running output_rows=1629 generation_log_rows=4013 output_mtime=2026-09-10 20:07:16.769497200 +0800
+2026-09-10 21:12:44 +0800 pid=3364757 state=running output_rows=1828 generation_log_rows=4502 output_mtime=2026-09-10 21:10:02.069485508 +0800
+2026-09-10 22:12:44 +0800 pid=3364757 state=running output_rows=2014 generation_log_rows=4995 output_mtime=2026-09-10 22:09:50.783425029 +0800
+2026-09-10 23:12:44 +0800 pid=3364757 state=running output_rows=2204 generation_log_rows=5464 output_mtime=2026-09-10 23:06:37.244441148 +0800
+2026-09-11 00:12:44 +0800 pid=3364757 state=running output_rows=2412 generation_log_rows=5967 output_mtime=2026-09-11 00:09:06.366933806 +0800
+2026-09-11 01:12:44 +0800 pid=3364757 state=running output_rows=2611 generation_log_rows=6442 output_mtime=2026-09-11 01:11:26.867635363 +0800
+2026-09-11 02:12:44 +0800 pid=3364757 state=running output_rows=2766 generation_log_rows=6836 output_mtime=2026-09-11 02:04:13.356425496 +0800
+2026-09-11 03:12:44 +0800 pid=3364757 state=running output_rows=2998 generation_log_rows=7380 output_mtime=2026-09-11 03:09:53.844032466 +0800
+2026-09-11 04:12:44 +0800 pid=3364757 state=running output_rows=3178 generation_log_rows=7845 output_mtime=2026-09-11 04:10:10.678170118 +0800
+2026-09-11 05:12:44 +0800 pid=3364757 state=running output_rows=3525 generation_log_rows=8721 output_mtime=2026-09-11 05:07:50.497087773 +0800
+2026-09-11 06:12:44 +0800 pid=3364757 state=running output_rows=3964 generation_log_rows=9706 output_mtime=2026-09-11 06:10:48.857605322 +0800
+2026-09-11 07:12:44 +0800 pid=3364757 state=running output_rows=4333 generation_log_rows=10599 output_mtime=2026-09-11 07:09:46.817067538 +0800
+2026-09-11 08:12:44 +0800 pid=3364757 state=running output_rows=4683 generation_log_rows=11455 output_mtime=2026-09-11 08:08:02.069466154 +0800
+2026-09-11 09:12:45 +0800 pid=3364757 state=running output_rows=5238 generation_log_rows=12396 output_mtime=2026-09-11 09:12:42.910973110 +0800
+2026-09-11 10:12:45 +0800 pid=3364757 state=stopped output_rows=5340 generation_log_rows=12535 output_mtime=2026-09-11 09:22:31.290933098 +0800
+2026-09-11 10:12:45 +0800 status=target_reached target_rows=5340
+
+2026-09-15 component_mrs backfill applied: 486 composite rows enriched from the generation log applied_steps (sha256 2bc38a5b746dfb81eb509caef515632a7172f44e637923c2daed6884e524edfa -> 648946c122110d808818df5cef9166602c9166b660c9c8a7719ecde4c010ab1a). Non-composite lines byte-identical; downstream whitelist signature unchanged. See augmented_data_all_label_mrs_v3_3_full.component_mrs_backfill.json

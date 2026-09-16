@@ -1,0 +1,278 @@
+{
+  "schema_version": 1,
+  "provenance_schema_version": 1,
+  "status": "applied",
+  "argv": [
+    "backfill_component_mrs.py"
+  ],
+  "cwd": "/home/ubuntu/MTrain",
+  "data": {
+    "path": "nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/augmented_data_all_label_mrs_v3_3_full.json",
+    "sha256_before": "2bc38a5b746dfb81eb509caef515632a7172f44e637923c2daed6884e524edfa",
+    "sha256_after": "648946c122110d808818df5cef9166602c9166b660c9c8a7719ecde4c010ab1a",
+    "bytes_before": 1341235,
+    "bytes_after": 1370347,
+    "row_count_before": 5340,
+    "row_count_after": 5340,
+    "changed_lines": 486,
+    "unchanged_lines": 4854
+  },
+  "generation_log": {
+    "path": "nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/augmented_data_all_label_mrs_v3_3_full.generation_log.jsonl",
+    "sha256": "8eb92745f9a093100d98b209f9a809076850b114d406a081c921ee7dee332598",
+    "line_count": 12535
+  },
+  "generator_report": {
+    "path": "nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/augmented_data_all_label_mrs_v3_3_full.report.json",
+    "sha256": "fca2434b0d3a40b476ffb5568e80ed1c787977db8854380695a80e1d217c62f9",
+    "prompt_version": "snli-pair-aware-all-label-mrs-v3.3",
+    "config_fingerprint": "3f7ed9ff3cd82904ebc6f6d5a711f212397a7fb6c25d330a886be42625cf74c0",
+    "config_fingerprint_source": "ast_snapshot_of_generator_source",
+    "generator_source": {
+      "path": "/home/ubuntu/MTrain/augment_snli_all_label_mrs.py",
+      "sha256": "53002411578a2bfe5b4a3e6015b0925c73cec254fac8f3b3326fe66465580e36"
+    }
+  },
+  "backup": {
+    "path": "nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/augmented_data_all_label_mrs_v3_3_full.pre_component_mrs_20260915.json",
+    "sha256": "2bc38a5b746dfb81eb509caef515632a7172f44e637923c2daed6884e524edfa",
+    "created": true,
+    "reused": false,
+    "enabled": true
+  },
+  "join": {
+    "composite_operations": [
+      "composite_flip",
+      "composite_inv",
+      "composite_neutral"
+    ],
+    "accepted_composite_log_entries": 486,
+    "composite_rows": 486,
+    "composite_rows_enriched_now": 486,
+    "unmatched_rows": [],
+    "unmatched_log_entries": [],
+    "bijection": true
+  },
+  "component_distribution": {
+    "pronoun_substitution+negation_flip": 248,
+    "pronoun_substitution+uninformative": 177,
+    "voice_switch+uninformative": 20,
+    "pronoun_substitution+synonym_replacement": 18,
+    "synonym_replacement+uninformative": 11,
+    "synonym_replacement+pronoun_substitution": 4,
+    "voice_switch+adding_contradiction": 4,
+    "synonym_replacement+negation_flip": 3,
+    "voice_switch+synonym_replacement": 1
+  },
+  "component_length_counts": {
+    "2": 9
+  },
+  "validation": {
+    "report.prompt_version matches generator source": true,
+    "report.label_mrs matches generator OPERATION_SPECS order": true,
+    "report.attempted counts match generation log": true,
+    "report.accepted counts match generation log": true,
+    "per-operation attempted counts sum to log length": true,
+    "generation log is non-empty": true,
+    "report source/synthetic counts match artifact row count": true,
+    "report.output resolves to this artifact": true,
+    "every composite row matched a log entry": true,
+    "every accepted composite log entry was consumed": true,
+    "accepted composite log entry count equals composite row count": true,
+    "existing component_mrs never disagreed with the log": true,
+    "every composite row carries the field after backfill": true,
+    "line count unchanged": true,
+    "non-composite lines are byte-identical": true,
+    "only composite lines changed": true,
+    "label and mr_id distributions unchanged": true,
+    "downstream split-manifest signature unchanged": true
+  },
+  "validation_details": {
+    "report.prompt_version matches generator source": {
+      "report": "snli-pair-aware-all-label-mrs-v3.3",
+      "source": "snli-pair-aware-all-label-mrs-v3.3"
+    },
+    "report.label_mrs matches generator OPERATION_SPECS order": {
+      "report": [
+        "negation_flip",
+        "antonym_substitution",
+        "adding_contradiction",
+        "pronoun_substitution",
+        "voice_switch",
+        "synonym_replacement",
+        "uninformative",
+        "conditional_clause",
+        "composite_inv",
+        "composite_flip",
+        "composite_neutral"
+      ],
+      "source": [
+        "negation_flip",
+        "antonym_substitution",
+        "adding_contradiction",
+        "pronoun_substitution",
+        "voice_switch",
+        "synonym_replacement",
+        "uninformative",
+        "conditional_clause",
+        "composite_inv",
+        "composite_flip",
+        "composite_neutral"
+      ]
+    },
+    "report.attempted counts match generation log": {
+      "negation_flip": [
+        717,
+        717
+      ],
+      "antonym_substitution": [
+        368,
+        368
+      ],
+      "adding_contradiction": [
+        723,
+        723
+      ],
+      "pronoun_substitution": [
+        2033,
+        2033
+      ],
+      "voice_switch": [
+        1119,
+        1119
+      ],
+      "synonym_replacement": [
+        2033,
+        2033
+      ],
+      "uninformative": [
+        1308,
+        1308
+      ],
+      "conditional_clause": [
+        739,
+        739
+      ],
+      "composite_inv": [
+        2033,
+        2033
+      ],
+      "composite_flip": [
+        723,
+        723
+      ],
+      "composite_neutral": [
+        739,
+        739
+      ]
+    },
+    "report.accepted counts match generation log": {
+      "negation_flip": [
+        480,
+        480
+      ],
+      "antonym_substitution": [
+        13,
+        13
+      ],
+      "adding_contradiction": [
+        180,
+        180
+      ],
+      "pronoun_substitution": [
+        355,
+        355
+      ],
+      "voice_switch": [
+        45,
+        45
+      ],
+      "synonym_replacement": [
+        33,
+        33
+      ],
+      "uninformative": [
+        1150,
+        1150
+      ],
+      "conditional_clause": [
+        565,
+        565
+      ],
+      "composite_inv": [
+        23,
+        23
+      ],
+      "composite_flip": [
+        255,
+        255
+      ],
+      "composite_neutral": [
+        208,
+        208
+      ]
+    },
+    "per-operation attempted counts sum to log length": {
+      "sum": 12535,
+      "log_lines": 12535
+    },
+    "generation log is non-empty": 12535,
+    "report source/synthetic counts match artifact row count": {
+      "report": 5340,
+      "rows": 5340
+    },
+    "report.output resolves to this artifact": {
+      "report_output": "/home/ubuntu/MTrain/nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/augmented_data_all_label_mrs_v3_3_full.json",
+      "data": "/home/ubuntu/MTrain/nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/augmented_data_all_label_mrs_v3_3_full.json"
+    },
+    "every composite row matched a log entry": [],
+    "every accepted composite log entry was consumed": [],
+    "accepted composite log entry count equals composite row count": {
+      "rows": 486,
+      "accepted_entries": 486
+    },
+    "existing component_mrs never disagreed with the log": [],
+    "every composite row carries the field after backfill": {
+      "composite_rows": 486,
+      "enriched_now": 486
+    },
+    "line count unchanged": {
+      "before": 5340,
+      "after": 5340
+    },
+    "non-composite lines are byte-identical": [],
+    "only composite lines changed": {
+      "changed": 486,
+      "composite_rows": 486
+    },
+    "downstream split-manifest signature unchanged": {
+      "before": "d7b6f02ddb5a5f2bb9d618ecb33609c83e5b4349aa8f9fde726beef627bebeee",
+      "after": "d7b6f02ddb5a5f2bb9d618ecb33609c83e5b4349aa8f9fde726beef627bebeee"
+    }
+  },
+  "signatures": {
+    "signature_before": "d7b6f02ddb5a5f2bb9d618ecb33609c83e5b4349aa8f9fde726beef627bebeee",
+    "signature_after": "d7b6f02ddb5a5f2bb9d618ecb33609c83e5b4349aa8f9fde726beef627bebeee",
+    "signature_fields": [
+      "pair_id",
+      "mr_id",
+      "premise",
+      "hypothesis",
+      "label",
+      "idx",
+      "id",
+      "_source"
+    ],
+    "unchanged": true
+  },
+  "notes": [
+    "component_mrs is written only on composite rows; atomic and source rows keep their original bytes.",
+    "Signature uses the downstream whitelist and excludes component_mrs, so split manifests and conversion reports that reference this artifact stay valid."
+  ],
+  "legacy_run_command_recovered": {
+    "command_line": "python -u augment_snli_all_label_mrs.py --all --seed 42 --generator-model gemma-3-4b-it-qat --judge-model gemma-3-4b-it-qat --output nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/augmented_data_all_label_mrs_v3_3_full.json --candidate-count 3 --retries 2 --workers 8 --min-total-rows 5340 --max-fill-rounds 4 --checkpoint-every 10 --resume",
+    "source": "codex session transcript /home/ubuntu/.codex/sessions/2026/09/09/",
+    "confidence": "unofficial_recovery",
+    "note": "reconstructed from a third-party log; not emitted by the run itself"
+  }
+}
