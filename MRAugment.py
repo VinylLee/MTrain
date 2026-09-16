@@ -16,9 +16,86 @@ NLI 变形增强工具包（英文版）
 * **注册表模式**：保持公共 API 稳定且易于扩展
 """
 
-from typing import Any, Dict, Callable, Optional
-import re, NLIutils
+from typing import Any, Dict, Callable, List, Optional
+import json, re, NLIutils
 from LMstudio import OpenAIChat, HOST, PORT, MODEL
+
+
+# --------------------------------------------------------------------------- #
+# 批量 MR 处理的辅助谓词与常量（供 BATCH_MR_SPEC 使用）
+# --------------------------------------------------------------------------- #
+_NEGATION_WORDS = [
+    "not", "no", "never", "nobody", "nothing", "nowhere", "neither", "nor",
+    "don't", "doesn't", "didn't", "isn't", "aren't", "wasn't", "weren't",
+    "won't", "wouldn't", "can't", "cannot", "couldn't", "shouldn't", "mustn't",
+    "hardly", "barely", "scarcely", "without", "unless", "none", "few", "little"
+]
+_INTRANSITIVE_VERBS = [
+    "exist", "exists", "existed", "existing", "appear", "appears", "appeared",
+    "appearing", "seem", "seems", "seemed", "seeming", "happen", "happens",
+    "happened", "happening", "occur", "occurs", "occurred", "occurring",
+    "arrive", "arrives", "arrived", "arriving", "sleep", "sleeps", "slept",
+    "sleeping", "die", "dies", "died", "dying", "live", "lives", "lived",
+    "living", "belong", "belongs", "belonged", "belonging"
+]
+_LINKING_VERBS = [
+    "is", "are", "was", "were", "am", "be", "been", "being", "become",
+    "becomes", "became", "becoming", "remain", "remains", "remained",
+    "remaining", "stay", "stays", "stayed", "staying"
+]
+_PASSIVE_PHRASES = ["was", "were", "is", "are", "am", "been", "being"]
+_ACTION_INDICATORS = [
+    "make", "create", "build", "write", "read", "eat", "drink", "cook",
+    "prepare", "clean", "wash", "drive", "paint", "draw", "break", "fix",
+    "repair", "open", "close", "push", "pull", "carry", "bring", "take",
+    "send", "give", "show", "tell", "teach", "learn", "study", "work", "play",
+    "watch", "see"
+]
+
+
+def _has_existing_negation(sentence: str) -> bool:
+    s = sentence.lower()
+    return any(w in s for w in _NEGATION_WORDS)
+
+
+def _always_eligible(sample: Dict[str, Any]) -> bool:
+    return True
+
+
+def _elig_entailment(sample: Dict[str, Any]) -> bool:
+    return sample.get("label") == "entailment"
+
+
+def _elig_negation_flip(sample: Dict[str, Any]) -> bool:
+    return (sample.get("label") == "entailment"
+            and not _has_existing_negation(sample.get("hypothesis", "")))
+
+
+def _elig_voice_switch(sample: Dict[str, Any]) -> bool:
+    h = sample.get("hypothesis", "").lower()
+    words = h.split()
+    # 不及物/系动词按整词匹配（与原 can_switch_voice 一致）
+    if any(v in words for v in _INTRANSITIVE_VERBS):
+        return False
+    if any(v in words for v in _LINKING_VERBS):
+        return False
+    # 被动（有 be 系 + 以 ed/en 结尾的词）或主动含动作词，按子串匹配（与原一致）
+    is_passive = any(p in h for p in _PASSIVE_PHRASES) and any(
+        w.endswith("ed") or w.endswith("en") for w in words)
+    has_action = any(a in h for a in _ACTION_INDICATORS)
+    return is_passive or has_action
+
+
+def _accept_yes(answer: str) -> bool:
+    return "yes" in answer.lower()
+
+
+def _accept_contradiction(answer: str) -> bool:
+    return "contradiction" in answer.lower()
+
+
+def _accept_neutral(answer: str) -> bool:
+    return "neutral" in answer.lower()
 
 
 class NLIMRTool:
@@ -107,6 +184,91 @@ Input sentence to transform:
                 return clean
         else:
             return None
+
+    # ---- 批量原语（一次 LLM 调用处理多条样本） -------------------------------------
+
+    @staticmethod
+    def _parse_json_array(text: str) -> Optional[List[Any]]:
+        """从 LLM 输出中提取 JSON 数组；容忍 ```json 围栏与多余文本。"""
+        if not text:
+            return None
+        text = text.strip()
+        fence = re.search(r"```(?:json)?\s*(.*?)\s*```", text, re.S)
+        if fence:
+            text = fence.group(1).strip()
+        try:
+            arr = json.loads(text)
+            if isinstance(arr, list):
+                return arr
+        except Exception:
+            pass
+        bracket = re.search(r"\[.*\]", text, re.S)
+        if bracket:
+            try:
+                arr = json.loads(bracket.group(0))
+                if isinstance(arr, list):
+                    return arr
+            except Exception:
+                pass
+        return None
+
+    def _transform_batch(self, sentences: List[str],
+                         task_instruction: str) -> List[Optional[str]]:
+        """批量变换：把多条句子放进一个 prompt，一次 LLM 调用返回全部结果。
+
+        返回与输入对齐的列表，失败项为 None。
+        """
+        n = len(sentences)
+        if n == 0:
+            return []
+        lines = "\n".join(f"{i + 1}. {s}" for i, s in enumerate(sentences))
+        prompt = (
+            f"{task_instruction.strip()}\n\n"
+            f"Output ONLY a JSON array of exactly {n} strings, "
+            f"one per input sentence, in the same order. "
+            f"No explanations, no numbering.\n\n"
+            f"{lines}"
+        )
+        for _ in range(self._TRY_LIMIT):
+            raw = self._call_llm(prompt)
+            arr = self._parse_json_array(raw)
+            if arr is not None and len(arr) == n:
+                results: List[Optional[str]] = []
+                for item in arr:
+                    if not isinstance(item, str):
+                        results.append(None)
+                        continue
+                    clean = re.sub(r"<think>[\s\S]*?</think>",
+                                   "", item,
+                                   flags=re.IGNORECASE).strip()
+                    results.append(clean or None)
+                return results
+        return [None] * n
+
+    def _verify_batch(self, items: List[str],
+                      question: str) -> List[Optional[str]]:
+        """批量验证：把多个待验证项放进一个 prompt，要求返回每项的答案（JSON 数组）。
+
+        返回与输入对齐的答案列表（小写、strip），失败项为 None。
+        """
+        n = len(items)
+        if n == 0:
+            return []
+        lines = "\n".join(f"{i + 1}. {item}" for i, item in enumerate(items))
+        prompt = (
+            f"{question.strip()}\n\n"
+            f"For each numbered item, answer for that item only. "
+            f"Output ONLY a JSON array of exactly {n} answer strings, "
+            f"one per item, in the same order. No explanations.\n\n"
+            f"{lines}"
+        )
+        for _ in range(self._TRY_LIMIT):
+            raw = self._call_llm(prompt)
+            arr = self._parse_json_array(raw)
+            if arr is not None and len(arr) == n:
+                return [str(a).strip().lower() if a is not None else None
+                        for a in arr]
+        return [None] * n
 
     # ---- 不改变标签的 MR --------------------------------------------------------
 
@@ -1929,6 +2091,17 @@ Input sentence to transform:
         "composite_neutral": composite_mr_neutral,
     }
 
+    MT_MRS = {
+        "negation_flip": mr_negation_flip,
+        "antonym_substitution": mr_antonym_substitution,
+        "adding_contradiction": mr_adding_contradiction,
+        "pronoun_substitution": mr_pronoun_substitution,
+        "voice_switch": mr_voice_switch,
+        "synonym_replacement": mr_synonym_replacement,
+        "uninformative": mr_uninformative,
+        "conditional_clause": mr_conditional_clause,
+    }
+
     UNLABEL_MRS = {
         "synonym_replacement": mr_synonym_replacement,
         "negation_flip": mr_negation_flip,
@@ -1995,6 +2168,185 @@ Input sentence to transform:
         "composite_flip": "flip",
         "composite_neutral": "neutral",
     }
+
+    # 批量 MR 规格（供 mr_process_batch 使用）。用泛化指令替代单样本方法里的
+    # 按句策略选择/随机策略/启发式后处理，语义略有简化，速度换请求数。
+    BATCH_MR_SPEC = {
+        "negation_flip": {
+            "eligibility": _elig_negation_flip,
+            "transform_task": (
+                "Negate each sentence below. For 'is/are/was/were' verbs add "
+                "'not'; for other verbs use 'do not/does not/did not' + base "
+                "verb; or replace the subject with 'No'/'Nobody'/'No one' when "
+                "appropriate. Keep each sentence simple and natural. Avoid "
+                "double negation."),
+            "verify_question": ("Do these two sentences contradict each other? "
+                                "Answer with 'Yes' if they contradict, 'No' if "
+                                "they don't."),
+            "verify_accept": _accept_yes,
+            "label_change": "contradiction",
+        },
+        "antonym_substitution": {
+            "eligibility": _elig_entailment,
+            "transform_task": (
+                "Replace exactly ONE key adjective, verb, or adverb with its "
+                "direct antonym to create a logical opposite meaning. Use "
+                "natural antonyms (hot/cold, big/small, fast/slow, up/down, "
+                "in/out, open/close, start/stop). Keep grammar correct and "
+                "meaning clear. Avoid using 'not' - use real antonyms."),
+            "verify_question": ("Compare these two sentences. Do they contradict "
+                                "each other? Answer with 'Yes' if they "
+                                "contradict, 'No' if they don't contradict."),
+            "verify_accept": _accept_yes,
+            "label_change": "contradiction",
+        },
+        "adding_contradiction": {
+            "eligibility": _elig_entailment,
+            "transform_task": (
+                "Add a brief contradictory element to each sentence so that it "
+                "clearly contradicts the given premise. Keep the addition short "
+                "(3-5 words) and natural, e.g. use negations like 'but no one "
+                "else', 'with nothing visible', or a contradictory follow-up "
+                "sentence. Avoid verbose expressions."),
+            "verify_question": ("Analyze the logical relationship between "
+                                "premise and hypothesis. Look for clear "
+                                "contradictions, impossibilities, or mutually "
+                                "exclusive statements. Respond with EXACTLY one "
+                                "word: entailment, contradiction, or neutral."),
+            "verify_accept": _accept_contradiction,
+            "label_change": "contradiction",
+        },
+        "pronoun_substitution": {
+            "eligibility": _always_eligible,
+            "transform_task": (
+                "Replace ONE specific noun or noun phrase with the correct "
+                "pronoun: plural -> 'they/them', single man -> 'he/him', single "
+                "woman -> 'she/her', single animal/object -> 'it'. Subject "
+                "position: he/she/it/they; object: him/her/it/them; possessive: "
+                "his/her/its/their. Keep the sentence natural and grammatically "
+                "correct."),
+            "verify_question": ("Do these sentences have the same meaning? The "
+                                "second sentence uses pronouns instead of "
+                                "nouns, but should mean exactly the same thing. "
+                                "Answer with 'Yes' if same meaning, 'No' if "
+                                "different."),
+            "verify_accept": _accept_yes,
+            "label_change": None,
+        },
+        "voice_switch": {
+            "eligibility": _elig_voice_switch,
+            "transform_task": (
+                "Convert the sentence between active and passive voice while "
+                "preserving the exact meaning. Only convert sentences with "
+                "clear subject-verb-object relationships. Maintain appropriate "
+                "verb tenses and grammatical aspects. If the sentence cannot be "
+                "naturally converted, return the original unchanged."),
+            "verify_question": ("Do these two sentences mutually entail each "
+                                "other (have identical meaning)? Consider if "
+                                "each sentence logically guarantees the truth "
+                                "of the other. Answer with ONLY: Yes or No"),
+            "verify_accept": _accept_yes,
+            "label_change": None,
+        },
+        "synonym_replacement": {
+            "eligibility": _always_eligible,
+            "transform_task": (
+                "Paraphrase the sentence by substituting 1-2 words with "
+                "appropriate synonyms. Only replace common nouns, adjectives, "
+                "or verbs. Keep the EXACT same meaning and semantic "
+                "relationships. Do NOT modify named entities. Ensure the "
+                "replacement words are natural and contextually appropriate."),
+            "verify_question": ("Do these two sentences mutually entail each "
+                                "other (have identical meaning)? Consider if "
+                                "each sentence logically guarantees the truth "
+                                "of the other. Answer with ONLY: Yes or No"),
+            "verify_accept": _accept_yes,
+            "label_change": None,
+        },
+        "uninformative": {
+            "eligibility": _elig_entailment,
+            "transform_task": (
+                "Add a small amount of irrelevant but plausible information to "
+                "the sentence. The added information should be unrelated to the "
+                "logical relationship with the premise, making the hypothesis "
+                "neither clearly entailed nor contradicted by the premise. Keep "
+                "the addition brief (no more than 5-8 words) and grammatically "
+                "correct, e.g. add weather conditions, time references, or "
+                "incidental details."),
+            "verify_question": ("Evaluate the logical relationship between "
+                                "premise and hypothesis. Does the premise "
+                                "provide sufficient information to conclude the "
+                                "hypothesis is true? Answer with ONLY one word: "
+                                "entailment, contradiction, or neutral. Use "
+                                "'entailment' only if the hypothesis MUST be "
+                                "true given the premise."),
+            "verify_accept": _accept_neutral,
+            "label_change": "neutral",
+        },
+        "conditional_clause": {
+            "eligibility": _elig_entailment,
+            "transform_task": (
+                "Add a conditional clause to each sentence (using 'if', 'when', "
+                "'unless', 'although', 'provided that', 'in case', 'whether', "
+                "etc.) to introduce reasonable uncertainty that cannot be "
+                "resolved from the premise alone. Keep the addition natural and "
+                "grammatically correct."),
+            "verify_question": ("Determine if the premise provides enough "
+                                "information to confirm or deny the hypothesis. "
+                                "The hypothesis contains a conditional or "
+                                "qualifying statement - consider whether the "
+                                "premise gives information about the condition "
+                                "being met. Answer with ONLY one word: "
+                                "entailment, contradiction, or neutral."),
+            "verify_accept": _accept_neutral,
+            "label_change": "neutral",
+        },
+    }
+
+    def mr_process_batch(self, samples: List[Dict[str, Any]],
+                         mr_name: str) -> List[Optional[Dict[str, Any]]]:
+        """按 BATCH_MR_SPEC 批量处理一个 MR 的一批样本（label 须为字符串）。
+
+        返回与输入对齐的 follow-up dict 列表（premise/hypothesis/label），
+        失败项为 None。仅在 batch_size > 1 时用于提速。
+        """
+        spec = self.BATCH_MR_SPEC.get(mr_name)
+        if spec is None:
+            raise ValueError(f"没有为 MR '{mr_name}' 定义批量规格 BATCH_MR_SPEC")
+        n = len(samples)
+        if n == 0:
+            return []
+        eligible_idx = [i for i, s in enumerate(samples)
+                        if spec["eligibility"](s)]
+        if not eligible_idx:
+            return [None] * n
+
+        # 1) 批量变换 hypothesis
+        sentences = [samples[i]["hypothesis"] for i in eligible_idx]
+        candidates = self._transform_batch(sentences, spec["transform_task"])
+
+        # 2) 批量验证（仅对变换通过基本检查的候选项）
+        verify_pos: List[tuple] = []
+        items: List[str] = []
+        for j, i in enumerate(eligible_idx):
+            cand = candidates[j]
+            if cand is None or cand == samples[i]["hypothesis"]:
+                continue
+            verify_pos.append((i, cand))
+            items.append(
+                f"Premise: {samples[i]['premise']}\nHypothesis: {cand}")
+        answers = (self._verify_batch(items, spec["verify_question"])
+                   if items else [])
+
+        results: List[Optional[Dict[str, Any]]] = [None] * n
+        for k, (i, cand) in enumerate(verify_pos):
+            if answers and answers[k] and spec["verify_accept"](answers[k]):
+                follow = dict(samples[i])
+                follow["hypothesis"] = cand
+                if spec["label_change"]:
+                    follow["label"] = spec["label_change"]
+                results[i] = follow
+        return results
 
     def _get_verification_prompt(self, verification_type: str) -> str:
         """
