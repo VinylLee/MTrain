@@ -1,6 +1,27 @@
 # MetTrain
 
 This repository contains the implementation of Metamorphic Training for Natural Language Inference (NLI) tasks. This project utilizes Large Language Models (LLMs) to generate Metamorphic samples for augmenting training data and unlabeled data to improve model performance.
+
+---
+
+> ## 🚩 接手本项目前必读（2026-09-18）
+>
+> **本 README 描述的是旧的示例管线（RTE 示例数据集 + `new_run.py`）。当前在用的 SNLI 增效数据管线不在这里，而在：**
+>
+> | 文档 | 用途 |
+> |---|---|
+> | **[`HANDOFF.md`](HANDOFF.md)** | **先读这个**：当前状态、全部开放任务、工具速查、已知陷阱、铁律 |
+> | [`AUGMENTATION_PIPELINE.md`](AUGMENTATION_PIPELINE.md) | SNLI v3.3 生成流程逐节说明 + 全部提示词逐字摘录（写论文用） |
+>
+> **当前管线入口是 `augment_snli_all_label_mrs.py`**（不是下面写的 `new_run.py` / `NLImain.py`）。
+> 数据在 `nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/`，产物带 `component_mrs` 溯源字段与 `.generation_log.jsonl` 证据链。
+>
+> **三条铁律**：不要动 `PROMPT_VERSION` / `OPERATION_SPECS` / `COMPOSITE_STAGE_PLANS`；不要删 `.generation_log.jsonl`；生成不可复现（temperature=0.65，重跑即新数据集）。
+>
+> 下方旧章节保留作为历史参考，其中的路径与流程**不代表当前状态**。
+
+---
+
 > **⚠️ Notice**
 >
 > This repository is a research prototype that has been refactored for clarity. The main pipeline files described below are the recommended starting point for reproduction. Thank you for your understanding.
@@ -267,6 +288,35 @@ python NLImain.py --dataset_name rte --use_data_augmentation --labeled_ratio 0.8
 ```
 
 When the required JSON files already exist under `MetTrain/nli_arg_data/rte_lr0.8_gemma-3-4b-it-qat/`, the code should load the prepared data directly instead of triggering LLM-based generation.
+
+## 当前 SNLI 增效数据管线（文件清单）
+
+> 详见 [`HANDOFF.md`](HANDOFF.md) 与 [`AUGMENTATION_PIPELINE.md`](AUGMENTATION_PIPELINE.md)。以下文件**不在**旧版目录结构图中。
+
+| 文件 | 作用 |
+|---|---|
+| `augment_snli_all_label_mrs.py` | **当前生成器**：11 个 MR（8 原子 + 3 composite）的 pair-aware 生成 + 独立判题。SNLI v3.3 由它产出 |
+| `provenance_schema.py` | 共享溯源工具（纯标准库，被下面两个 import）：配置指纹、`component_mrs` 提取 |
+| `backfill_component_mrs.py` | 从 `generation_log.jsonl` 的 `applied_steps` 回填 composite 行的 `component_mrs`（18 项 fail-closed 校验、幂等） |
+| `audit_augmentation_quality.py` | 独立质量审计（确定性检查 + LLM 盲判复审），产出 `*.quality_report.json` |
+| `augment_snli_v2.py` | 前身生成器（3 个粗粒度操作）。**不要删**——`audit_augmentation_quality.py` 复用了它的 helper |
+| `monitor_snli_augmentation.sh` | 生成过程的小时级监控（行数/进程状态） |
+| `tests/` | 32 个测试。运行：`/home/ubuntu/anaconda3/bin/python -m pytest tests/ -q` |
+
+**数据目录**：`nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/`
+
+| 文件 | 说明 |
+|---|---|
+| `augmented_data_all_label_mrs_v3_3_full.json` | 当前正式数据（JSONL，5340 行，sha `648946c1…`） |
+| `..._full.generation_log.jsonl` | **唯一溯源**：逐次尝试的生成/判题证据，`component_mrs` 的来源 |
+| `..._full.report.json` | 运行配置 + 文件哈希 + `config_fingerprint` |
+| `..._full.quality_report.json` / `.quality_review.jsonl` | 质量审计结果 |
+| `..._full.component_mrs_backfill.json` | 回填记录 |
+| `..._full.pre_component_mrs_20260915.json` | 回填前原件（回滚用） |
+
+**环境提示**：默认 `python3` 未安装 `openai`；需 import 生成器时用 `/home/ubuntu/anaconda3/bin/python`。`provenance_schema.py` / `backfill_component_mrs.py` 是纯标准库，任意解释器均可。
+
+---
 
 ## 📂 Directory Organization
 
