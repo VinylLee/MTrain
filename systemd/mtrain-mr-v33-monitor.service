@@ -1,0 +1,14 @@
+[Unit]
+Description=One-shot MTrain MR v3.3 experiment health check
+After=network.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/MTrain
+Environment=HOME=/home/ubuntu
+Environment=PATH=/home/ubuntu/.lmstudio/bin:/home/ubuntu/anaconda3/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/home/ubuntu/MTrain/monitor_mr_test_v3_3_full.sh
+TimeoutStartSec=15min
+Nice=10

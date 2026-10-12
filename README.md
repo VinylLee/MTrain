@@ -12,6 +12,7 @@ This repository contains the implementation of Metamorphic Training for Natural 
 > |---|---|
 > | **[`HANDOFF.md`](HANDOFF.md)** | **先读这个**：当前状态、全部开放任务、工具速查、已知陷阱、铁律 |
 > | [`AUGMENTATION_PIPELINE.md`](AUGMENTATION_PIPELINE.md) | SNLI v3.3 生成流程逐节说明 + 全部提示词逐字摘录（写论文用） |
+> | [`MR_TEST_V3_3.md`](MR_TEST_V3_3.md) | v3.3 MR 测试生成工具、续跑与监控范围、当前数据完成状态和发布边界 |
 >
 > **当前管线入口是 `augment_snli_all_label_mrs.py`**（不是下面写的 `new_run.py` / `NLImain.py`）。
 > 数据在 `nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/`，产物带 `component_mrs` 溯源字段与 `.generation_log.jsonl` 证据链。

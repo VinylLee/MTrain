@@ -23,6 +23,18 @@ mr_test_data_full/
 mr_test_data_full copy/
 mr_test_data_merged/
 
+# v3.3 MR 测试生成的本机产物。忽略仅影响 Git 收录，不删除文件。
+# 正式数据发布需单独保留 JSONL、运行报告、SHA-256 与 generation_log 证据链；
+# 不要把这里的源数据、未完成检查点或运行状态当作已发布测试集。
+/mr_test_sources_v3_3/
+/mr_test_data_v3_3_full/
+/mr_test_data_v3_3_smoke/
+/mr_test_data_v3_3_smoke_gpu/
+/mr_test_data_merged_legacy_*/
+/mr_test_checkpoint_backups/
+/mr_test_runs_v3_3_full/
+*.bak_*
+
 # 会话/工具临时状态
 .claude/
 

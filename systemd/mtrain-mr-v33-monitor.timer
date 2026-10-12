@@ -1,0 +1,11 @@
+[Unit]
+Description=Run MTrain MR v3.3 health check every 30 minutes
+
+[Timer]
+OnCalendar=*-*-* *:00,30:00
+Persistent=true
+AccuracySec=1min
+Unit=mtrain-mr-v33-monitor.service
+
+[Install]
+WantedBy=timers.target
