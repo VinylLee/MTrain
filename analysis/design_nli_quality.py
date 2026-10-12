@@ -1,0 +1,167 @@
+"""OFFLINE DEVELOPMENT ONLY: inspect prompt errors, never filter generation output.
+
+Accepts only journalled development runs belonging to the frozen 600-source manifest.
+Writes probabilities/flags separately; it has no accepted/rejected export or relabel API.
+"""
+from __future__ import annotations
+import argparse
+import json
+from pathlib import Path
+import subprocess
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from nli_v3_4.data import canonical_source, digest, is_source, load_dataset, sha256, write_json, write_jsonl
+
+MODELS = {
+    "deberta": ("MoritzLaurer/DeBERTa-v3-base-mnli-fever-anli", "6f5cf0a2b59cabb106aca4c287eed12e357e90eb"),
+    "roberta": ("FacebookAI/roberta-large-mnli", "2a8f12d27941090092df78e4ba6f0928eb5eac98"),
+}
+
+
+def development_rows(manifest_path, dataset, generated_path):
+    manifest = json.loads(Path(manifest_path).read_text())
+    metadata = json.loads(Path(generated_path).with_suffix(".run.json").read_text())
+    if metadata.get("stage") != "development" or metadata.get("dataset") != dataset:
+        raise ValueError("NLI diagnostics are restricted to development runs")
+    if metadata.get("manifest_sha256") != sha256(manifest_path):
+        raise ValueError("development manifest mismatch")
+    rows, sources = load_dataset(generated_path)
+    if digest([canonical_source(r) for r in sources]) != metadata.get("source_sha256"):
+        raise ValueError("generated sources differ from the development run")
+    ids = set(manifest["datasets"][dataset]["development_pair_ids"])
+    if any(r["pair_id"] not in ids for r in rows):
+        raise ValueError("nondevelopment source in input; do not inspect confirmation data")
+    original = {r["pair_id"]: r for r in sources}
+    for r in rows:
+        if is_source(r):
+            continue
+        yield r, original[r["pair_id"]]
+
+
+def pick_device(requested):
+    import torch
+    if requested == "cpu" or not torch.cuda.is_available():
+        return "cpu"
+    result = subprocess.check_output(["nvidia-smi", "--query-gpu=index,memory.free",
+                                      "--format=csv,noheader,nounits"], text=True)
+    free = [(int(i), int(mem)) for line in result.splitlines() for i, mem in [line.split(",")]]
+    eligible = [(i, mem) for i, mem in free if mem >= 8192]
+    if not eligible:
+        return "cpu"
+    return f"cuda:{max(eligible, key=lambda item: item[1])[0]}"
+
+
+def score_tasks(model, tokenizer, tasks, device, batch_size):
+    import torch
+    scores = []
+    mapping = {int(k): str(v).lower() for k, v in model.config.id2label.items()}
+    if set(mapping.values()) != {"entailment", "neutral", "contradiction"}:
+        raise ValueError(f"unsupported label mapping {mapping}")
+    limit = min(int(getattr(model.config, "max_position_embeddings", 512)),
+                int(tokenizer.model_max_length), 512)
+    for start in range(0, len(tasks), batch_size):
+        batch = tasks[start:start + batch_size]
+        valid, valid_indices = [], []
+        partial = [None] * len(batch)
+        for index, (_, left, right) in enumerate(batch):
+            encoded = tokenizer(left, right, truncation=False)
+            if len(encoded["input_ids"]) > limit:
+                partial[index] = {"status": "too_long", "tokens": len(encoded["input_ids"])}
+            else:
+                valid.append(encoded); valid_indices.append(index)
+        if valid:
+            encoded = tokenizer.pad(valid, return_tensors="pt").to(device)
+            with torch.inference_mode():
+                probabilities = model(**encoded).logits.float().softmax(-1).cpu().tolist()
+            for index, probs in zip(valid_indices, probabilities):
+                p = {mapping[k]: value for k, value in enumerate(probs)}
+                partial[index] = {"status": "scored", "probabilities": p,
+                                  "prediction": max(p, key=p.get)}
+        scores.extend(partial)
+    return scores
+
+
+def run(manifest_path, dataset, generated_path, output, cache, requested_device="auto", batch_size=8):
+    import torch
+    from transformers import AutoModelForSequenceClassification, AutoTokenizer
+    torch.set_num_threads(2)
+    output = Path(output)
+    if output.exists():
+        raise FileExistsError(output)
+    before = sha256(generated_path)
+    entries = list(development_rows(manifest_path, dataset, generated_path))
+    tasks = []
+    rows = []
+    for index, (row, source) in enumerate(entries):
+        record = {"row_number": index, "pair_id": row["pair_id"], "mr_id": row["mr_id"],
+            "expected_label": ("entailment", "neutral", "contradiction")[row["label"]],
+            "premise": row["premise"], "hypothesis": row["hypothesis"],
+            "source_hypothesis": source["hypothesis"], "scores": {}}
+        tasks.append((index, row["premise"], row["hypothesis"]))
+        if row["mr_type"] == "inv":
+            tasks.extend([(index, source["hypothesis"], row["hypothesis"]),
+                          (index, row["hypothesis"], source["hypothesis"])])
+        rows.append(record)
+    device = pick_device(requested_device)
+    models_meta = {}
+    for name, (model_id, revision) in MODELS.items():
+        snapshot = Path(cache) / ("models--" + model_id.replace("/", "--")) / "snapshots" / revision
+        tokenizer = AutoTokenizer.from_pretrained(snapshot, local_files_only=True)
+        model = AutoModelForSequenceClassification.from_pretrained(snapshot, local_files_only=True,
+                    use_safetensors=True).to(device).eval()
+        results = score_tasks(model, tokenizer, tasks, device, batch_size)
+        cursor = 0
+        for index, (row, _) in enumerate(entries):
+            n = 3 if row["mr_type"] == "inv" else 1
+            rows[index]["scores"][name] = dict(zip(("pair", "inv_forward", "inv_reverse"), results[cursor:cursor+n]))
+            cursor += n
+        models_meta[name] = {"model_id": model_id, "revision": revision, "device": device,
+                            "id2label": model.config.id2label,
+                            "weights_sha256": sha256(snapshot/"model.safetensors"),
+                            "config_sha256": sha256(snapshot/"config.json")}
+        del model
+        if device.startswith("cuda"):
+            torch.cuda.empty_cache()
+    for row in rows:
+        flags = []
+        predictions = []
+        for name, tests in row["scores"].items():
+            for test, score in tests.items():
+                if score["status"] != "scored":
+                    flags.append(f"{name}:{test}:too_long")
+                    continue
+                expected = row["expected_label"] if test == "pair" else "entailment"
+                if score["probabilities"][expected] < 0.8:
+                    flags.append(f"{name}:{test}:low_target_probability")
+                if test == "pair":
+                    predictions.append(score["prediction"])
+        if len(set(predictions)) > 1:
+            flags.append("pair:model_disagreement")
+        row["design_diagnostic_flags"] = flags
+    if sha256(generated_path) != before:
+        raise RuntimeError("input changed during design diagnostic")
+    write_jsonl(output / "design_scores.jsonl", rows)
+    write_json(output / "report.json", {"stage": "development_diagnostic_only", "dataset": dataset,
+        "input": str(Path(generated_path).resolve()), "input_sha256": before,
+        "generation_metadata_sha256": sha256(Path(generated_path).with_suffix(".run.json")),
+        "manifest_sha256": sha256(manifest_path), "models": models_meta, "rows": len(rows),
+        "flagged_rows": sum(bool(r["design_diagnostic_flags"]) for r in rows),
+        "input_unchanged": True, "used_to_filter_data": False, "production_dependency": False})
+
+
+def main():
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--manifest", type=Path, required=True)
+    p.add_argument("--dataset", required=True)
+    p.add_argument("--generated", type=Path, required=True)
+    p.add_argument("--output", type=Path, required=True)
+    p.add_argument("--cache", type=Path, default=Path.home()/".cache/huggingface/hub")
+    p.add_argument("--device", choices=("auto", "cpu"), default="auto")
+    p.add_argument("--batch-size", type=int, default=8)
+    a = p.parse_args()
+    run(a.manifest, a.dataset, a.generated, a.output, a.cache, a.device, a.batch_size)
+
+
+if __name__ == "__main__":
+    main()

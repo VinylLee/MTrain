@@ -1,0 +1,120 @@
+# 本地 v3.4 减少 NLI 捷径实验
+
+主目标是 **实际新训练文件 → 四个新测试集** 的 hypothesis-only TF-IDF＋逻辑回归
+follow-up accuracy 分别 ≤60%，同时通过人工质量检查。试验结果不能代替全量确认。
+代码、数据、报告和备份均不推送远程；旧 v3.3/v1.1 输入不覆盖。
+
+## 方法边界
+
+`nli_v3_4/core.py` 定义所有来源共用的生成和同模型 Gemma 评审规则。训练/测试
+身份、数据集名称、外部模型评分均不进入提示词、风格选择或候选排名。添加操作
+先生成 edit plan，由代码保留原假设并实现连接；必要条件只允许 H⇒C 的实现。
+INV 与 flip 继续保留严格操作约束，复合顺序和中间输出记录在日志中。
+
+生成标签的统一目标是 E/N/C 各约三分之一，以合法来源＋MR 请求调度实现。
+原标签不改，原始样本全保留；失败和配额缺口明确记为 partial。每请求最多三候选、
+两轮；复合操作新旧均采用一个确定的阶段计划、相同的逐阶段候选预算。最多四轮
+补充请求，所有补充都记录，不能借助外部模型分数挑选或删除输出。
+各MR均衡分配尝试预算，避免低成功率操作阻塞配额；来源也按已尝试次数轮转。
+
+`analysis/design_nli_quality.py` **只允许开发来源和 development 生成记录**。
+DeBERTa 与 RoBERTa MNLI 的用途是定位提示词错误并帮助修改通用规则。
+评分文件与生成文件分离，只有分数和诊断标记，没有样本接受、过滤或改标签接口。
+正式增强入口不导入此工具或 transformers，正式阶段不调用外部 NLI 模型。
+完整测试中参与设计的来源另列；冻结后其余来源用于确认，不能反复调参挑最佳结果。
+
+## 固定诊断
+
+`analysis/hypothesis_only_logreg.py` 使用完整训练文件（原始＋增强）拟合词级
+unigram/bigram TF-IDF，min_df=2、max_features=30000、sublinear_tf=True。
+LR C=1、lbfgs、无类别加权、seed42、tol=1e-4；未收敛则增加迭代上限。
+特征输入仅 hypothesis，词表和 IDF 不接触测试。标签用于监督；pair ID 与 MR
+只在预测之后用于来源组 bootstrap 和分组报告。主指标只计测试增强行。
+
+```bash
+export LD_LIBRARY_PATH=/home/ubuntu/anaconda3/lib
+PY=/home/ubuntu/anaconda3/bin/python
+$PY analysis/hypothesis_only_logreg.py \
+  --train nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/augmented_data_all_label_mrs_v3_3_full.json \
+  --test-root mr_test_data_v3_3_full --output local_runs/baseline_logreg_new_run
+```
+
+2026-10-12 完整 v3.3 的该口径基线：SNLI 96.02%、MNLI-m 90.23%、
+MNLI-mm 89.78%、SICK 92.74%。当前输出见
+`local_runs/nli_v3_4_20261012/baseline_logreg/REPORT_zh.md`。
+
+## 开发、人工复核与冻结
+
+```bash
+$PY run_nli_v3_4.py prepare \
+  --train nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/augmented_data_all_label_mrs_v3_3_full.json \
+  --test-root mr_test_data_v3_3_full --output local_runs/development_new_run
+
+$PY run_nli_v3_4_development.py \
+  --manifest local_runs/development_new_run/manifest.json \
+  --output local_runs/pilot_round1 --round 1 --workers 2 \
+  --design-python .venv-nli-design/bin/python
+```
+
+每个来源固定120组（每原标签40组），五个来源共600组。每来源试验目标180条增强。
+三个对照臂：v3_3_original（旧表达＋旧标签比例）、v3_3（旧表达＋均衡）、
+v3_4（新表达＋均衡）。这三个臂为重放试验，不等同于历史完整数据。
+各臂使用相同单请求预算，但语义失败率可能导致实际请求次数不同；请求、MR
+覆盖与标签分布全部公开。比较共享来源/MR的配对子集，单列清理和分布调整贡献。
+
+驱动器可用同一命令恢复，生成日志为事实记录；配置、来源或代码变化时拒绝恢复。
+它停在人工复核，不自动冻结或启动正式生成。服务连续错误则保留已生成结果并停止。
+
+```bash
+$PY status_nli_v3_4.py --root local_runs/nli_v3_4_20261012/pilot_round1
+```
+
+外部诊断环境独立于生成环境。当前隔离环境从已有兼容包复制，Torch2.0.1、
+Transformers4.29.2；实际依赖和来源记录在
+`local_runs/nli_v3_4_20261012/design_environment.json`。两模型固定本地缓存修订，
+使用 safetensors，不下载权重，不静默截断；GPU可用且空闲≥8GiB时选择空闲最多的卡，
+否则CPU。开发评分不能被称为质量真值。
+
+人工先读取 `human_review/label_grammar_blind.jsonl`，再读 `operation_blind.jsonl`，
+不要读取私有版本键。默认每MR20对，稀有类型全审，证据不足扩大至40对。
+由真实审核人填写模板副本，提供审核人标识及人工完成声明；自动意见不能冒充人工。
+
+```bash
+$PY analysis/nli_v3_4_review.py assess \
+  --review-root local_runs/pilot_round1/human_review \
+  --answers local_runs/pilot_round1/human_answers.json \
+  --output local_runs/pilot_round1/human_quality.json
+$PY run_nli_v3_4.py freeze \
+  --manifest local_runs/development_new_run/manifest.json \
+  --quality local_runs/pilot_round1/human_quality.json \
+  --shortcut local_runs/pilot_round1/v3_4_logreg/metrics.json \
+  --round 1 --output local_runs/pilot_round1/frozen.json
+```
+
+冻结要求五来源生成完整、四集开发诊断≤60%，及真实人工质量通过：标签、语言、
+操作、INV等价率各≥95%，新版本点估计不低于旧版本，配对来源组 bootstrap 差异
+95%下界≥−2个百分点。稀有或未覆盖MR的证据量必须披露；不能把缺失证据写成通过。
+最多三轮正式提示词开发；早期接口 smoke 单独保存，不混入正式试验。
+
+## 正式数据与最终验收
+
+```bash
+$PY run_nli_v3_4.py generate --stage production --dataset train \
+  --manifest local_runs/development_new_run/manifest.json \
+  --freeze local_runs/pilot_round1/frozen.json \
+  --output local_runs/production_v3_4/train.jsonl
+```
+
+其余来源分别指定 snli、mnlim、mnlimm、sick。只有冻结后的相同配置可生成正式数据；
+正式配额是对应历史完整文件的增强数量，不允许用小样本目标冒充完成。保留所有
+2,033训练来源和34,377测试来源。输出兼容现有训练/测试字段，不修改下游训练代码。
+
+生成完后运行主诊断（加 `--development-manifest` 单列非开发来源），分别运行
+旧训练→新测试、新训练→旧测试；辅助探针仍高时公开残余捷径。
+正式人工盲审可用 `nli_v3_4_review.py package --stage production`，旧基线使用
+prepare保存的 baseline_full 目录。所有总体完成声明必须同时具有完整生成、
+四集≤60%和人工质量证据；生成报告中的 overall_complete 始终为 false，最终由
+独立的 release 验证汇总，不把名义生成完成当成实验完成。
+
+验证命令为 `$PY -m pytest -q tests`。根目录的 new_test.py 导入实验函数 test_nli，
+没有对应pytest fixture，故全仓库无参数收集并非有效单元测试入口。
