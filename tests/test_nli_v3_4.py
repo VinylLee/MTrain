@@ -49,6 +49,14 @@ def test_pronoun_requires_removed_np_and_handles_repeated_np_occurrences():
     source["hypothesis"]="A man carries a box."
     text="He carries a box."
     assert not core.parse_candidates(json.dumps([{"hypothesis":text,"target_label":"entailment"}]),source,"pronoun_substitution")
+    source["hypothesis"]="A man watches another man at the table."
+    text="He watches another man at the table."
+    assert not core.parse_candidates(json.dumps([{"hypothesis":text,"target_label":"entailment"}]),source,"pronoun_substitution")
+    assert not core.eligible(source,"pronoun_substitution")
+    source["hypothesis"]="The woman rests and the woman sleeps."
+    for text in ("The woman rests and he sleeps.", "She rests and the woman sleeps."):
+        assert not core.parse_candidates(json.dumps([{"hypothesis":text,"target_label":"entailment"}]),source,"pronoun_substitution")
+    assert core.parse_candidates(json.dumps([{"hypothesis":"The woman rests and she sleeps.","target_label":"entailment"}]),source,"pronoun_substitution")
 
 
 def test_judge_array_and_object_have_identical_strict_verdicts():
