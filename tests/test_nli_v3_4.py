@@ -46,6 +46,9 @@ def test_pronoun_requires_removed_np_and_handles_repeated_np_occurrences():
     source["hypothesis"]="The men carry a box and the men walk."
     text="The men carry a box and they walk."
     assert core.parse_candidates(json.dumps([{"hypothesis":text,"target_label":"entailment"}]),source,"pronoun_substitution")
+    source["hypothesis"]="A man carries a box."
+    text="He carries a box."
+    assert not core.parse_candidates(json.dumps([{"hypothesis":text,"target_label":"entailment"}]),source,"pronoun_substitution")
 
 
 def test_judge_array_and_object_have_identical_strict_verdicts():
@@ -139,9 +142,9 @@ def test_repeated_format_errors_do_not_abort_generation(tmp_path,monkeypatch):
 
 def test_composite_resume_only_calls_unused_final_judge(monkeypatch):
     from nli_v3_4.data import source_uid
-    source={"premise":"The men carry a box.","hypothesis":"The men carry a box.","label":0,"pair_id":7}
-    intermediate="They carry a box."
-    final="They transport a box."
+    source={"premise":"The men carry a box and the men walk.","hypothesis":"The men carry a box and the men walk.","label":0,"pair_id":7}
+    intermediate="The men carry a box and they walk."
+    final="The men transport a box and they walk."
     stages=[];working=dict(source)
     for op,text in (("pronoun_substitution",intermediate),("synonym_replacement",final)):
         stages.append({"operation":op,"source_uid":source_uid(working),"status":"rejected","attempts":[

@@ -49,4 +49,14 @@ def has_actual_pronoun_replacement(source, candidate):
     before, after = content_counts(source), content_counts(candidate)
     removed, added = before - after, after - before
     # Counter rather than sets permits replacement of a repeated NP occurrence.
-    return 1 <= sum(removed.values()) <= 2 and not added
+    # The MR requires an antecedent in the sentence itself. Replacing the only
+    # occurrence ("a man" -> "he") cannot satisfy that; deleted attributes must
+    # remain in the retained antecedent too, rather than disappear.
+    return (1 <= sum(removed.values()) <= 2 and not added
+            and all(after[token] > 0 for token in removed))
+
+
+def has_possible_sentence_antecedent(text):
+    counts = Counter(t.lower() for t in WORD.findall(text)
+                     if legacy.content_tokens(t) and t.lower() not in legacy.REFERENCE_TOKENS)
+    return any(count >= 2 for count in counts.values())

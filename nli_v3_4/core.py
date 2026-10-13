@@ -13,7 +13,8 @@ import augment_snli_all_label_mrs as legacy
 from .data import digest, normalize, source_uid
 from .protocol import (parse_judgments, exception_fields, replay_atomic,
                        parse_equivalence_judgments, choose_invariant_candidate)
-from .invariants import valid_invariant_tokens, valid_synonym_edit, has_actual_pronoun_replacement
+from .invariants import (valid_invariant_tokens, valid_synonym_edit,
+                         has_actual_pronoun_replacement, has_possible_sentence_antecedent)
 
 PROMPT_VERSION = "english-nli-pair-aware-all-label-mrs-v3.4"
 ALLOWED_MODEL = legacy.ALLOWED_MODEL
@@ -120,7 +121,19 @@ def fingerprint():
 
 
 def eligible(source, operation):
-    return legacy.eligible(source, operation)
+    if not legacy.eligible(source, operation):
+        return False
+    if operation == "pronoun_substitution":
+        return has_possible_sentence_antecedent(source["hypothesis"])
+    if operation in COMPOSITE_STAGE_PLANS:
+        return bool(available_plans(source, operation))
+    return True
+
+
+def available_plans(source, operation):
+    return [plan for plan in COMPOSITE_STAGE_PLANS[operation]
+            if eligible(source, plan[0]) and ("pronoun_substitution" not in plan
+                    or has_possible_sentence_antecedent(source["hypothesis"]))]
 
 
 def target_label(source, operation):
@@ -374,7 +387,7 @@ def generate_one(client, source, operation, seed=42, prior_trace=None):
         return generate_atomic(client, source, operation, seed, prior_trace) if prior_trace else generate_atomic(client, source, operation, seed)
     # One deterministic valid plan, avoiding hidden extra retries across plans.
     plans = COMPOSITE_STAGE_PLANS[operation]
-    available = [p for p in plans if eligible(source, p[0])]
+    available = available_plans(source, operation)
     if not available:
         return None, {"status": "ineligible", "operation": operation}
     index = int(digest([source_uid(source), operation, seed])[:8], 16) % len(available)
@@ -462,7 +475,7 @@ def generate_legacy_bounded(client, source, operation, seed=42, prior_trace=None
     """Replay unchanged v3.3 prompts with the same single-plan budget as v3.4."""
     if operation not in COMPOSITE_STAGE_PLANS:
         return generate_legacy_atomic(client, source, operation, prior_trace)
-    plans = [p for p in COMPOSITE_STAGE_PLANS[operation] if eligible(source, p[0])]
+    plans = [p for p in COMPOSITE_STAGE_PLANS[operation] if legacy.eligible(source, p[0])]
     if not plans:
         return None, {"status": "ineligible", "operation": operation}
     plan = tuple(prior_trace["applied_steps"]) if prior_trace else plans[int(digest([source_uid(source), operation, seed])[:8], 16) % len(plans)]
@@ -473,7 +486,7 @@ def generate_legacy_bounded(client, source, operation, seed=42, prior_trace=None
     log["stage_logs"] = []
     working = dict(source)
     for stage_index, stage in enumerate(plan):
-        if not eligible(working, stage):
+        if not legacy.eligible(working, stage):
             log["status"] = "ineligible_stage"
             return None, log
         prior = old_stages[stage_index] if stage_index < len(old_stages) else None
