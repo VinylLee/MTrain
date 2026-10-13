@@ -32,6 +32,9 @@ def test_synonym_permits_two_words_but_preserves_spelled_numbers_and_qualifiers(
     def parsed(text):
         return core.parse_candidates(json.dumps([{"hypothesis":text,"target_label":"entailment"}]),source,"synonym_replacement")
     assert parsed("The men transport a carton.")
+    assert parsed("The men transport a carton")
+    source["hypothesis"]="The men carry a box"
+    assert parsed("The men transport a carton.")
     source["hypothesis"]="It was one hundred ten degrees in West Texas."
     assert not parsed("It was one-ten degrees in West Texas.")
     source["hypothesis"]="Professor Rogers has always been a clerk to him."
@@ -295,6 +298,29 @@ def test_journalled_export_and_resume_do_not_regenerate_or_change_originals(tmp_
     assert [canonical_source(r) for r in sources] == [canonical_source(r) for r in load_dataset(tmp_path/"original.jsonl")[1]]
     with pytest.raises(ValueError, match="configuration changed"):
         workflow.run_generation(manifest, "train", output, target=6, resume=True)
+
+
+def test_entailment_inv_attempts_do_not_starve_neutral_inv_requests(tmp_path,monkeypatch):
+    import openai
+    from nli_v3_4.data import source_uid,export_followup
+    monkeypatch.setattr(openai,"OpenAI",lambda **kwargs:object())
+    monkeypatch.setattr(core.legacy,"_completion",lambda *args,**kwargs:"OK")
+    manifest=tiny_manifest(tmp_path);output=tmp_path/"run.jsonl"
+    workflow.run_generation(manifest,"train",output,target=6,limit_requests=0)
+    source=load_dataset(tmp_path/"original.jsonl")[1][0];logs=[]
+    for operation in ("synonym_replacement","voice_switch","composite_inv"):
+        for refill in range(3):
+            row=export_followup(source,operation,source["hypothesis"]+f" edit {refill}",0,"inv",None,"train") if operation=="synonym_replacement" and refill<2 else None
+            logs.append({"request_id":digest([source_uid(source),operation,refill,42,"v3.4"]),
+                "source_uid":source_uid(source),"pair_id":source["pair_id"],"operation":operation,
+                "refill_round":refill,"target_label":0,"row":row,"trace":{"status":"accepted" if row else "rejected"}})
+    write_jsonl(output.with_suffix(".generation_log.jsonl"),logs)
+    calls=[]
+    def generate(client,source,operation,seed):
+        calls.append((source["label"],operation));return None,{"status":"rejected"}
+    monkeypatch.setattr(core,"generate_one",generate)
+    workflow.run_generation(manifest,"train",output,target=6,resume=True,limit_requests=1)
+    assert calls[0][0]==1 and core.OPERATION_SPECS[calls[0][1]]["family"]=="inv"
 
 
 def test_production_requires_real_frozen_gates(tmp_path):

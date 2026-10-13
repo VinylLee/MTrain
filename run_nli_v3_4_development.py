@@ -4,12 +4,14 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import os
+import signal
 from pathlib import Path
 import subprocess
 import sys
 import time
 
 from nli_v3_4 import core
+from nli_v3_4.processes import ChildProcesses, RunInterrupted
 from nli_v3_4.data import DATASETS, sha256, write_json
 
 ROOT = Path(__file__).resolve().parent
@@ -27,8 +29,12 @@ def run(manifest, output, workers=2, design_python=None, round_number=1):
     write_json(identity_path,identity)
     status={**identity,"state":"running","jobs":{},"human_review_complete":False}
     write_json(output/"status.json", status)
+    children=ChildProcesses()
+    saved_handlers={sig:signal.getsignal(sig) for sig in (signal.SIGINT,signal.SIGTERM)}
+    for sig in saved_handlers: signal.signal(sig,children.signal_handler)
 
     def generate(arm,dataset):
+        children.check()
         path=output/arm/f"{dataset}.jsonl";path.parent.mkdir(parents=True,exist_ok=True)
         version="v3.4" if arm=="v3_4" else "v3.3"
         quota="original" if arm=="v3_3_original" else "balanced"
@@ -36,7 +42,7 @@ def run(manifest, output, workers=2, design_python=None, round_number=1):
              "--dataset",dataset,"--version",version,"--quota-policy",quota,"--output",str(path)]
         if path.with_suffix(".run.json").exists():cmd.append("--resume")
         with (output/arm/f"{dataset}.stdout.log").open("a") as log:
-            code=subprocess.run(cmd,cwd=ROOT,stdout=log,stderr=subprocess.STDOUT).returncode
+            code=children.run(cmd,cwd=ROOT,stdout=log)
         report=json.loads(path.with_suffix(".report.json").read_text()) if path.with_suffix(".report.json").exists() else {}
         return arm,dataset,code,report
 
@@ -45,12 +51,17 @@ def run(manifest, output, workers=2, design_python=None, round_number=1):
         for arm in ("v3_4","v3_3","v3_3_original"):
             with ThreadPoolExecutor(max_workers=workers) as pool:
                 pending=[pool.submit(generate,arm,d) for d in ("train",*DATASETS)]
-                for future in as_completed(pending):
-                    _,dataset,code,report=future.result()
-                    status["jobs"][f"{arm}/{dataset}"]={"exit_code":code,
-                        "generation_complete":report.get("generation_complete",False),
-                        "followups":report.get("followups",0)}
-                    write_json(output/"status.json",status)
+                try:
+                    for future in as_completed(pending):
+                        _,dataset,code,report=future.result()
+                        status["jobs"][f"{arm}/{dataset}"]={"exit_code":code,
+                            "generation_complete":report.get("generation_complete",False),
+                            "followups":report.get("followups",0)}
+                        write_json(output/"status.json",status)
+                except BaseException:
+                    children.stop()
+                    for future in pending: future.cancel()
+                    raise
             complete=all(status["jobs"][f"{arm}/{d}"]["generation_complete"] for d in ("train",*DATASETS))
             if arm=="v3_4" and design_python:
                 for dataset in ("train",*DATASETS):
@@ -58,13 +69,13 @@ def run(manifest, output, workers=2, design_python=None, round_number=1):
                         continue
                     diagnostic=output/"design_diagnostics"/dataset
                     if not (diagnostic/"report.json").exists():
-                        subprocess.run([str(design_python),str(ROOT/"analysis/design_nli_quality.py"),
+                        children.run([str(design_python),str(ROOT/"analysis/design_nli_quality.py"),
                             "--manifest",str(manifest),"--dataset",dataset,"--generated",str(output/arm/f"{dataset}.jsonl"),
                             "--output",str(diagnostic)],cwd=ROOT,check=True)
             if arm=="v3_4" and all(status["jobs"][f"{arm}/{d}"]["followups"] for d in ("train",*DATASETS)):
                 probe_root=output/f"{arm}_logreg"
                 if not (probe_root/"metrics.json").exists():
-                    subprocess.run([sys.executable,str(ROOT/"analysis/hypothesis_only_logreg.py"),
+                    children.run([sys.executable,str(ROOT/"analysis/hypothesis_only_logreg.py"),
                         "--train",str(output/arm/"train.jsonl"),"--test-root",str(output/arm),
                         "--output",str(probe_root)],cwd=ROOT,check=True)
                 status["shortcut_passed"]=json.loads((probe_root/"metrics.json").read_text())["all_datasets_pass"]
@@ -78,24 +89,32 @@ def run(manifest, output, workers=2, design_python=None, round_number=1):
                 return 2
         for arm in ("v3_4","v3_3","v3_3_original"):
             if not (output/f"{arm}_logreg"/"metrics.json").exists():
-                subprocess.run([sys.executable,str(ROOT/"analysis/hypothesis_only_logreg.py"),
+                children.run([sys.executable,str(ROOT/"analysis/hypothesis_only_logreg.py"),
                     "--train",str(output/arm/"train.jsonl"),"--test-root",str(output/arm),
                     "--output",str(output/f"{arm}_logreg")],cwd=ROOT,check=True)
         if not (output/"human_review"/"manifest.json").exists():
-            subprocess.run([sys.executable,str(ROOT/"analysis/nli_v3_4_review.py"),"package",
+            children.run([sys.executable,str(ROOT/"analysis/nli_v3_4_review.py"),"package",
                 "--old-root",str(output/"v3_3"),"--new-root",str(output/"v3_4"),
                 "--output",str(output/"human_review")],cwd=ROOT,check=True)
         if not (output/"comparison"/"comparison.json").exists():
-            subprocess.run([sys.executable,str(ROOT/"analysis/compare_nli_v3_4.py"),
+            children.run([sys.executable,str(ROOT/"analysis/compare_nli_v3_4.py"),
                 "--root",str(output),"--output",str(output/"comparison")],cwd=ROOT,check=True)
         status["state"]="awaiting_human_review"
         status["shortcut_passed"]=json.loads((output/"v3_4_logreg/metrics.json").read_text())["all_datasets_pass"]
         write_json(output/"status.json",status)
         return 0
+    except (RunInterrupted,KeyboardInterrupt) as exc:
+        children.stop()
+        status.update(state="interrupted",error=str(exc),generation_interrupted=True)
+        write_json(output/"status.json",status)
+        return 130
     except Exception as exc:
+        children.stop()
         status.update(state="failed",error=f"{type(exc).__name__}: {exc}")
         write_json(output/"status.json",status)
         raise
+    finally:
+        for sig,handler in saved_handlers.items(): signal.signal(sig,handler)
 
 
 def main():

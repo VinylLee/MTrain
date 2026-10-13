@@ -107,6 +107,7 @@ def _errors(value):
 def _code_hashes():
     root = Path(__file__).resolve().parents[1]
     return {p: sha256(root / p) for p in ("nli_v3_4/core.py", "nli_v3_4/data.py", "nli_v3_4/workflow.py", "nli_v3_4/protocol.py", "nli_v3_4/recovery.py", "nli_v3_4/invariants.py",
+                "nli_v3_4/processes.py", "run_nli_v3_4.py", "run_nli_v3_4_development.py",
                 "augment_snli_all_label_mrs.py", "provenance_schema.py")}
 
 
@@ -143,6 +144,7 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
         "code_hashes": _code_hashes(), "target_followups": target, "quota_policy": quota_policy,
         "label_quotas": wanted, "candidate_count": 3, "rounds": 2,
         "max_refill_rounds": 4, "model": core.ALLOWED_MODEL,
+        "scheduling_policy": "balance_attempts_within_target_label_and_MR_v2",
         "base_url": base_url, "timeout": timeout, "external_nli_in_pipeline": False,
         "response_protocol": PROTOCOL_VERSION}
     meta = output.with_suffix(".run.json")
@@ -231,7 +233,10 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
         raise
     consecutive_errors = 0
     new_requests = 0
-    attempts_by_mr = Counter(log["operation"] for log in logs)
+    # An INV MR is applicable to all source labels. Attempts spent filling the
+    # harder entailment quota must not suppress N/C INV requests in other queues.
+    attempts_by_label_mr = Counter((log["target_label"],log["operation"]) for log in logs)
+    accepted_by_label_mr = Counter((r["label"],r["mr_id"]) for r in accepted)
     attempts_by_source = Counter(log["pair_id"] for log in logs)
     stop = False
     final_state = "partial"
@@ -248,7 +253,7 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
                         return bool(pending_ids) and digest([source_uid(s), op, refill_round, seed, version]) in pending_ids
                     operation = min((op for op,q in queues[label].items() if q),
                                     key=lambda op: (not any(is_pending(s, op) for s in queues[label][op]),
-                                                    attempts_by_mr[op], mr_counts[op], op))
+                                                    attempts_by_label_mr[(label,op)], accepted_by_label_mr[(label,op)], op))
                     queue = queues[label][operation]
                     source = min(queue, key=lambda s: (not is_pending(s, operation), attempts_by_source[s["pair_id"]]))
                     queue.remove(source)
@@ -279,6 +284,7 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
                                 engine.OPERATION_SPECS[operation]["mr_type"], steps, schema)
                             entry["row"] = row
                             accepted.append(row); seen.add(key); counts[label] += 1; mr_counts[operation] += 1
+                            accepted_by_label_mr[(label,operation)] += 1
                         else:
                             entry["discard_reason"] = "duplicate_or_unchanged"
                     if prior_entry:
@@ -291,7 +297,7 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
                     else:
                         handle.write(json.dumps(entry, ensure_ascii=False)+"\n"); handle.flush()
                         log_indices[request_id] = len(logs); logs.append(entry)
-                        attempts_by_mr[operation] += 1
+                        attempts_by_label_mr[(label,operation)] += 1
                         attempts_by_source[source["pair_id"]] += 1
                     processed.add(request_id); new_requests += 1
                     pending_ids.discard(request_id)

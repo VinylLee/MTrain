@@ -44,8 +44,11 @@ def valid_synonym_edit(source, candidate):
         # Proper names and acronyms inside a sentence are never synonym slots.
         if a[0].isupper() or b[0].isupper():
             return False
-    # Punctuation is not an additional rewriting operation.
-    return WORD.sub("_", source).strip() == WORD.sub("_", candidate).strip()
+    # A final full stop may be normalized along with a substantive synonym edit.
+    # Keep internal punctuation/scope; punctuation alone still has zero edits.
+    def skeleton(text):
+        return re.sub(r"\.$", "", WORD.sub("_", text).strip()).strip()
+    return skeleton(source) == skeleton(candidate)
 
 
 def has_actual_pronoun_replacement(source, candidate):
