@@ -106,7 +106,7 @@ def _errors(value):
 
 def _code_hashes():
     root = Path(__file__).resolve().parents[1]
-    return {p: sha256(root / p) for p in ("nli_v3_4/core.py", "nli_v3_4/data.py", "nli_v3_4/workflow.py", "nli_v3_4/protocol.py", "nli_v3_4/recovery.py",
+    return {p: sha256(root / p) for p in ("nli_v3_4/core.py", "nli_v3_4/data.py", "nli_v3_4/workflow.py", "nli_v3_4/protocol.py", "nli_v3_4/recovery.py", "nli_v3_4/invariants.py",
                 "augment_snli_all_label_mrs.py", "provenance_schema.py")}
 
 
@@ -198,12 +198,24 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
                 row["idx"] = idx
         write_jsonl(output, rows)
         quotas_met = all(counts[l] == wanted[l] for l in range(3))
+        call_counts = Counter()
+        def count_calls(trace):
+            if isinstance(trace, dict):
+                call_counts.update(e["role"] for e in trace.get("model_call_events", []))
+                for key, value in trace.items():
+                    if key not in {"model_call_events", "prior_trace"}:
+                        count_calls(value)
+            elif isinstance(trace, list):
+                for value in trace: count_calls(value)
+        for entry in logs: count_calls(entry["trace"])
+        source_label_family = Counter(f"{engine.OPERATION_SPECS[r['mr_id']]['family']}/source_{source_by_id[r['pair_id']]['label']}/target_{r['label']}" for r in accepted)
         write_json(report, {**run_config, "state": state, "generation_complete": quotas_met,
             "overall_complete": False, "quality_status": "awaiting_human_review",
             "sources": len(sources), "followups": len(accepted), "requests": len(logs),
             "pending_continuations": sum(bool(e.get("pending_continuation")) for e in logs),
             "label_counts": dict(counts), "label_deficits": {l: wanted[l]-counts[l] for l in range(3)},
             "mr_counts": dict(mr_counts), "output_sha256": sha256(output),
+            "model_call_counts":dict(call_counts), "source_label_family_counts":dict(source_label_family),
             "journal_sha256": sha256(journal), "external_nli_in_pipeline": False})
 
     checkpoint("prepared" if not logs else "resuming")

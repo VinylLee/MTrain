@@ -14,7 +14,7 @@ class ResponseFormatError(ValueError):
     pass
 
 
-def parse_judgments(raw, candidate_count):
+def parse_judgments(raw, candidate_count, require_bidirectional=False):
     """Accept a list or {evaluations: list}; never invent labels, indices or booleans."""
     try:
         value = legacy.extract_json(raw)
@@ -46,8 +46,21 @@ def parse_judgments(raw, candidate_count):
             labels[field] = text.strip().lower()
         if len(labels) != 2:
             continue
+        directions = {}
+        if require_bidirectional:
+            for field in ("source_to_candidate", "candidate_to_source"):
+                text = evaluation.get(field)
+                if not isinstance(text, str) or text.strip().lower() not in legacy.LABEL_IDS:
+                    break
+                directions[field] = text.strip().lower()
+            if len(directions) != 2:
+                continue
+            # Same NLI label relative to P is insufficient for INV equivalence.
+            # Each directional judgment concerns only the two hypotheses.
+            if any(label != "entailment" for label in directions.values()):
+                evaluation = {**evaluation, "source_equivalent": False}
         judgments[index] = {**labels, **{k: evaluation[k] for k in required},
-                            "reason": str(evaluation.get("reason", "other"))}
+                            **directions, "reason": str(evaluation.get("reason", "other"))}
     return judgments
 
 
@@ -61,6 +74,68 @@ def exception_fields(exc):
     raise exc
 
 
+def parse_equivalence_judgments(raw, candidate_count):
+    """Validate standalone H/H judgments without inventing P/H labels."""
+    value = legacy.extract_json(raw)
+    evaluations = value if isinstance(value, list) else value.get("evaluations") if isinstance(value, dict) else None
+    if not isinstance(evaluations, list):
+        raise ResponseFormatError("equivalence response lacks an evaluation array")
+    result = {}; indices = set()
+    for entry in evaluations:
+        if not isinstance(entry, dict):
+            continue
+        index = entry.get("index")
+        if type(index) is not int or not 0 <= index < candidate_count or index in indices:
+            raise ResponseFormatError("ambiguous equivalence candidate index")
+        indices.add(index)
+        if any(type(entry.get(k)) is not bool for k in ("grammatical", "operation_valid", "source_equivalent")):
+            continue
+        directions = {}
+        for key in ("source_to_candidate", "candidate_to_source"):
+            label = entry.get(key)
+            if not isinstance(label, str) or label.strip().lower() not in legacy.LABEL_IDS:
+                break
+            directions[key] = label.strip().lower()
+        if len(directions) != 2:
+            continue
+        result[index] = {**directions, **{k:entry[k] for k in ("grammatical", "operation_valid", "source_equivalent")},
+                         "reason": str(entry.get("reason", "other"))}
+    return result
+
+
+def merge_inv_judgments(pair_judgments, equivalence_judgments):
+    """Require independent P/H label and both H/H entailment directions."""
+    result = {}
+    for index, pair in pair_judgments.items():
+        eq = equivalence_judgments.get(index)
+        if eq is None:
+            continue
+        result[index] = {**pair, "source_to_candidate":eq["source_to_candidate"],
+                        "candidate_to_source":eq["candidate_to_source"],
+                        "source_equivalent":eq["source_equivalent"] and all(eq[k] == "entailment"
+                             for k in ("source_to_candidate", "candidate_to_source")),
+                        "grammatical":pair["grammatical"] and eq["grammatical"],
+                        "operation_valid":pair["operation_valid"] and eq["operation_valid"],
+                        "equivalence_reason":eq["reason"]}
+    return result
+
+
+def choose_invariant_candidate(candidates, judgments, source, operation):
+    """INV gold follows from verified equivalence, never a new label prediction."""
+    if legacy.OPERATION_SPECS[operation]["family"] != "inv":
+        raise ValueError("invariant chooser must not cross MR family")
+    for index, candidate in enumerate(candidates):
+        verdict = judgments.get(index)
+        if verdict is None or not all(verdict.get(k) is True for k in
+                ("grammatical", "operation_valid", "source_equivalent")):
+            continue
+        if any(verdict.get(k) != "entailment" for k in ("source_to_candidate", "candidate_to_source")):
+            continue
+        return candidate, {**verdict, "output_label": legacy.LABELS[source["label"]],
+                           "label_provenance": "INV_equivalence_preserves_source_gold"}
+    return None
+
+
 def has_api_failure(trace):
     if isinstance(trace, dict):
         return trace.get("error_kind") == "api" or any(has_api_failure(v) for v in trace.values())
@@ -69,7 +144,8 @@ def has_api_failure(trace):
     return False
 
 
-def replay_atomic(source, operation, trace, candidate_parser, preserved_text=None):
+def replay_atomic(source, operation, trace, candidate_parser, preserved_text=None,
+                  require_bidirectional=False):
     """Re-read saved model verdicts without another generation or judgment call."""
     log = deepcopy(trace)
     if log.get("source_uid") not in (None, source_uid(source)):
@@ -83,16 +159,23 @@ def replay_atomic(source, operation, trace, candidate_parser, preserved_text=Non
             candidates = candidate_parser(raw_generation, source, operation)
             if candidates != attempt.get("candidates"):
                 raise ValueError("saved candidates differ from their raw response")
-            verdicts = parse_judgments(raw_judgment, len(candidates))
+            if require_bidirectional:
+                raw_equivalence = attempt.get("raw_equivalence_judgment")
+                if not raw_equivalence:
+                    continue
+                verdicts = parse_equivalence_judgments(raw_equivalence, len(candidates))
+            else:
+                verdicts = parse_judgments(raw_judgment, len(candidates))
         except ResponseFormatError:
             continue
+        chooser = choose_invariant_candidate if require_bidirectional else legacy.choose_candidate
         if preserved_text is None:
-            chosen = legacy.choose_candidate(candidates, verdicts, source, operation)
+            chosen = chooser(candidates, verdicts, source, operation)
         else:
             chosen = None
             for index, candidate in enumerate(candidates):
                 if candidate == preserved_text and index in verdicts:
-                    chosen = legacy.choose_candidate([candidate], {0: verdicts[index]}, source, operation)
+                    chosen = chooser([candidate], {0: verdicts[index]}, source, operation)
                     if chosen:
                         break
         attempt["protocol_replay_judgments"] = verdicts

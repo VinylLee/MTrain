@@ -15,7 +15,37 @@ SOURCE = {"premise": "A man in a red shirt is carrying a box outdoors.",
 
 
 VERDICT = {"index":0,"label":"entailment","source_label":"entailment",
-           "grammatical":True,"operation_valid":True,"source_equivalent":True,"reason":"ok"}
+           "grammatical":True,"operation_valid":True,"source_equivalent":True,"reason":"ok",
+           "source_to_candidate":"entailment","candidate_to_source":"entailment"}
+
+
+def test_inv_cannot_pass_without_both_independent_entailment_directions():
+    for changed in ({"candidate_to_source":"neutral"}, {"source_to_candidate":"contradiction"}):
+        verdict=parse_judgments(json.dumps([{**VERDICT,**changed}]),1,require_bidirectional=True)[0]
+        assert not verdict["source_equivalent"]
+    value={k:v for k,v in VERDICT.items() if k!="candidate_to_source"}
+    assert parse_judgments(json.dumps([value]),1,require_bidirectional=True)=={}
+
+
+def test_synonym_permits_two_words_but_preserves_spelled_numbers_and_qualifiers():
+    source={**SOURCE,"hypothesis":"The men carry a box."}
+    def parsed(text):
+        return core.parse_candidates(json.dumps([{"hypothesis":text,"target_label":"entailment"}]),source,"synonym_replacement")
+    assert parsed("The men transport a carton.")
+    source["hypothesis"]="It was one hundred ten degrees in West Texas."
+    assert not parsed("It was one-ten degrees in West Texas.")
+    source["hypothesis"]="Professor Rogers has always been a clerk to him."
+    assert not parsed("Professor Rogers has served him as a clerk.")
+    assert not parsed("Professor Smith has always been a clerk to him.")
+
+
+def test_pronoun_requires_removed_np_and_handles_repeated_np_occurrences():
+    source={**SOURCE,"hypothesis":"The instructors help, and are always available."}
+    text="The instructors help, and they are always available."
+    assert not core.parse_candidates(json.dumps([{"hypothesis":text,"target_label":"entailment"}]),source,"pronoun_substitution")
+    source["hypothesis"]="The men carry a box and the men walk."
+    text="The men carry a box and they walk."
+    assert core.parse_candidates(json.dumps([{"hypothesis":text,"target_label":"entailment"}]),source,"pronoun_substitution")
 
 
 def test_judge_array_and_object_have_identical_strict_verdicts():
@@ -47,6 +77,7 @@ def test_cached_judgment_replay_does_not_spend_new_model_budget():
     raw=json.dumps([{"hypothesis":candidate,"target_label":"entailment"}])
     prior={"operation":"synonym_replacement","status":"rejected","attempts":[
         {"raw_generation":raw,"candidates":[candidate],"raw_judgment":json.dumps([VERDICT]),
+         "raw_equivalence_judgment":json.dumps([VERDICT]),
          "status":"error","error":"ValueError: judge response lacks evaluations"}]}
     text,trace=core.generate_atomic(OfflineClient(),SOURCE,"synonym_replacement",prior_trace=prior)
     assert text == candidate and len(trace["attempts"]) == 1
@@ -116,6 +147,7 @@ def test_composite_resume_only_calls_unused_final_judge(monkeypatch):
         stages.append({"operation":op,"source_uid":source_uid(working),"status":"rejected","attempts":[
             {"raw_generation":json.dumps([{"hypothesis":text,"target_label":"entailment"}]),
              "candidates":[text],"raw_judgment":json.dumps([VERDICT])}]})
+        stages[-1]["attempts"][0]["raw_equivalence_judgment"]=json.dumps([VERDICT])
         working["hypothesis"]=text
     prior={"operation":"composite_inv","status":"rejected",
            "applied_steps":["pronoun_substitution","synonym_replacement"],"stage_logs":stages}
@@ -126,6 +158,24 @@ def test_composite_resume_only_calls_unused_final_judge(monkeypatch):
     text,trace=core.generate_one(object(),source,"composite_inv",prior_trace=prior)
     assert text==final and len(calls)==1
     assert trace["applied_steps"]==prior["applied_steps"]
+
+
+def test_equivalence_prompt_has_no_original_premise_or_gold_label():
+    source={**SOURCE,"premise":"UNIQUE FACTUAL PREMISE SENTINEL", "label":2}
+    prompt=core.build_equivalence_prompt(source,"synonym_replacement",["A man transports a box."])
+    assert source["premise"] not in prompt
+    assert '"source_label"' not in prompt and '"target_label"' not in prompt
+
+
+def test_inv_preserves_gold_only_with_valid_direction_labels_and_stays_in_family():
+    from nli_v3_4.protocol import choose_invariant_candidate
+    source={**SOURCE,"label":1}
+    chosen=choose_invariant_candidate(["A man transports a box."],{0:VERDICT},source,"synonym_replacement")
+    assert chosen[1]["output_label"]=="neutral" and source["label"]==1
+    assert choose_invariant_candidate(["A man transports a box."],
+        {0:{**VERDICT,"candidate_to_source":"neutral"}},source,"synonym_replacement") is None
+    with pytest.raises(ValueError):
+        choose_invariant_candidate(["A man transports a box."],{0:VERDICT},source,"negation_flip")
 
 
 def plan(added="the man is not a doctor", connector=" and ", label="neutral"):

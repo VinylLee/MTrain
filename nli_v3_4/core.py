@@ -11,7 +11,9 @@ import re
 
 import augment_snli_all_label_mrs as legacy
 from .data import digest, normalize, source_uid
-from .protocol import parse_judgments, exception_fields, replay_atomic
+from .protocol import (parse_judgments, exception_fields, replay_atomic,
+                       parse_equivalence_judgments, choose_invariant_candidate)
+from .invariants import valid_invariant_tokens, valid_synonym_edit, has_actual_pronoun_replacement
 
 PROMPT_VERSION = "english-nli-pair-aware-all-label-mrs-v3.4"
 ALLOWED_MODEL = legacy.ALLOWED_MODEL
@@ -32,6 +34,12 @@ enjoying, walking does not mean strolling happily, and 'a man' does not mean
 'someone'. Do not add mental states or remove stated gender/age."""
 OPERATION_SPECS["synonym_replacement"]["instruction"] += """ Do not weaken a specific
 action into broad engagement or participation; keep the same event and specificity."""
+OPERATION_SPECS["synonym_replacement"]["instruction"] += """ Change exactly one or two
+word positions and copy all other words and punctuation. Copy digit and spelled-out
+quantities, names, quantifiers, frequency words and modality exactly. Do not omit
+'always', 'every other', 'only', or similar qualifications. Do not substitute a
+broader category (hotel/lodging, lying/untruthful) unless exact contextual meaning
+is identical. A contextual synonym must preserve specificity in both directions."""
 OPERATION_SPECS["uninformative"]["instruction"] = """Retain the entire supported SOURCE
 HYPOTHESIS proposition and add exactly one specific plausible detail that the PREMISE
 neither states nor rules out. The combined statement must be neutral. Added facts may
@@ -65,16 +73,45 @@ neutral means neither guaranteed nor ruled out. Perform only the requested opera
 Generate natural varied English, not label-specific boilerplate. Added unsupported
 negative facts may be neutral; an affirmative incompatible fact may contradict.
 For invariant edits preserve exact truth conditions, not just the NLI label.
+An invariant source may be neutral or contradicted by the premise: preserve its
+own meaning anyway. Never repair that hypothesis to make it entailed by the premise.
 If the operation is unsafe, return []. Return only the requested JSON array."""
-JUDGE_SYSTEM = legacy.JUDGE_SYSTEM_PROMPT.replace("SNLI", "English NLI")
+JUDGE_SYSTEM = """You are a conservative English NLI quality judge.
+Classify each hypothesis from the factual premise alone. Contradiction requires
+logical incompatibility, not merely missing or unlikely information. Entailment
+requires that every asserted fact is guaranteed. Otherwise choose neutral.
+Judge grammar and the requested edit operation independently of the NLI label.
+An INV may preserve a source that is neutral or contradicted; never repair it to
+be entailed. Hypothesis equivalence is evaluated in a separate isolated pass.
+Return JSON only, no hidden reasoning; reason is a short diagnostic tag."""
+EQUIVALENCE_SYSTEM = """Judge a conservative invariant text edit. You see only the
+original text and its rewritten candidates, with NO external factual premise.
+Assume the original text is true to check original -> rewritten entailment, then
+assume the rewritten text is true to check rewritten -> original entailment.
+Exact equivalence requires BOTH directions. Preserve all qualifications, entities,
+roles, counts, gender, tense, aspect and polarity. Same topic is insufficient.
+Judge the requested operation independently. Output JSON only with short reason tags."""
+EQUIVALENCE_SYSTEM += """ A requested operation is NOT evidence that it was obeyed.
+Read the two actual strings; never assume a replacement is a synonym.
+Calibration examples (both directions matter):
+original='The bell is loud.', rewritten='The bell is quiet.': contradiction,
+contradiction, equivalent=false.
+original='He always helps.', rewritten='He helps.': entailment, neutral,
+equivalent=false because the reverse does not guarantee 'always'.
+original='The men carry a box.', rewritten='A box is carried by the men.':
+entailment, entailment, equivalent=true. These are examples, not your verdicts."""
 
 
 def contract():
     return {"prompt_version": PROMPT_VERSION, "operations": OPERATION_SPECS,
             "composite_plans": COMPOSITE_STAGE_PLANS, "styles": STYLE_POOL,
-            "system": SYSTEM, "judge_system": JUDGE_SYSTEM,
+            "system": SYSTEM, "judge_system": JUDGE_SYSTEM, "equivalence_system": EQUIVALENCE_SYSTEM,
             "candidate_count": 3, "rounds": 2, "model": ALLOWED_MODEL,
             "quota_policy": "equal_followup_labels_E_N_C_v1",
+            "judge_protocol": "same_gemma_INV_HH_only_other_MRs_PH_v2",
+            "inv_label_rule": "strict_bidirectional_equivalence_preserves_source_gold",
+            "inv_judge_calls_per_attempt": 1, "other_judge_calls_per_attempt": 1,
+            "invariant_parser": "aligned_one_or_two_synonyms_numeric_words_actual_np_v2",
             "external_nli_in_production": False}
 
 
@@ -159,14 +196,75 @@ Classify premise -> candidate using strict NLI. Extra unmentioned facts, includi
 negated ones, are neutral unless disproven. An affirmative incompatible fact may
 contradict. Do not use the connector as evidence for a label. For conditional edits
 check the necessary direction H => C; reject sufficient conditions C => H.
-For INV check BOTH entailment directions between source and candidate, preserving
-roles, number, quantifiers, tense and polarity. Similar topic is not equivalence.
+For INV judge only the PREMISE -> source and PREMISE -> candidate labels here;
+a separate pass checks source/candidate equivalence. Do not conflate these tasks.
+Preserve roles, number, quantifiers, tense and polarity in the requested edit.
+Adding a pronoun without replacing a noun phrase is NOT pronoun_substitution.
+Changing an antonym or broadly related word is NOT synonym_replacement.
 For adding_contradiction the addition must contradict a different premise fact,
 not the retained source proposition. All edits must be grammatical and substantive.
-Return exactly {{"evaluations":[{{"index":0,"source_label":"entailment",
-"label":"entailment","grammatical":true,"source_equivalent":true,
-"operation_valid":true,"reason":"ok"}}]}} with one entry per candidate.
-Use a short reason tag and no prose."""
+Preserve an original grammatical fragment as a fragment when the MR permits it;
+do not add facts to turn it into a complete sentence.
+Return an object with key evaluations, a list with exactly one entry for EACH
+candidate index supplied above. Do not create an entry for the source hypothesis.
+Each entry has: index (integer copied from candidate), source_label (your strict
+PREMISE -> source classification), label (PREMISE -> this candidate), grammatical
+(boolean), operation_valid (boolean), source_equivalent=false (reserved for the
+separate equivalence pass), reason (short tag).
+Each NLI label must be exactly one of entailment, neutral, contradiction.
+No preset example labels, no prose."""
+
+
+def build_equivalence_prompt(source, operation, candidates):
+    # Deliberately exclude factual premise, gold labels, target labels and role.
+    payload = {"operation":operation,"operation_requirement":OPERATION_SPECS[operation]["instruction"],
+               "original_text":source["hypothesis"],
+               "candidates":[{"index":i,"rewritten_text":text} for i,text in enumerate(candidates)]}
+    return f"""{json.dumps(payload, ensure_ascii=False)}
+For each supplied candidate, compare ONLY original_text and rewritten_text.
+source_to_candidate: take original_text as the premise and rewritten_text as hypothesis.
+candidate_to_source: take rewritten_text as the premise and original_text as hypothesis.
+Use strict NLI labels entailment, neutral, contradiction for each direction.
+Preserve even information that might be false in the real world. No outside text
+or world facts are part of these comparisons. Dropping 'always', an object, gender,
+a quantifier, or a frequency is not equivalence. Broadly related words are not
+exact synonyms. Adding a pronoun without replacing a noun phrase is not that MR.
+Keep a grammatical original fragment as a fragment rather than inventing facts.
+Return {{"evaluations":[...]}} with one entry per supplied candidate index:
+index (integer), source_to_candidate (NLI label), candidate_to_source (NLI label),
+source_equivalent (boolean, true only if both directions entailment), grammatical
+(boolean), operation_valid (boolean), reason (short tag). Do not evaluate an
+unsupplied source candidate or assume any example verdict."""
+
+
+def judge_current(client, source, operation, candidates, trace, max_tokens=600):
+    if OPERATION_SPECS[operation]["family"] == "inv":
+        prompt = build_equivalence_prompt(source, operation, candidates)
+        raw = trace.get("raw_equivalence_judgment")
+        if raw is None:
+            trace.setdefault("model_call_events", []).append({"role":"invariant_equivalence_judge", "max_tokens":max_tokens})
+            raw = _call(client, EQUIVALENCE_SYSTEM, prompt, 0.0, max_tokens)
+        trace["equivalence_prompt_sha256"] = digest([EQUIVALENCE_SYSTEM, prompt])
+        trace["raw_equivalence_judgment"] = raw
+        trace["raw_judgment"] = raw
+        trace["label_binding"] = "INV_equivalence_preserves_source_gold"
+        equivalent = parse_equivalence_judgments(raw, len(candidates))
+        trace["equivalence_judgments"] = equivalent
+        return equivalent
+    prompt = build_judge_prompt(source, operation, candidates)
+    raw = trace.get("raw_judgment")
+    if raw is None:
+        trace.setdefault("model_call_events", []).append({"role":"pair_label_judge", "max_tokens":max_tokens})
+        raw = _call(client, JUDGE_SYSTEM, prompt, 0.0, max_tokens)
+    trace["judge_prompt_sha256"] = digest([JUDGE_SYSTEM, prompt])
+    trace["raw_judgment"] = raw
+    return parse_judgments(raw, len(candidates))
+
+
+def choose_current(candidates, judgments, source, operation):
+    if OPERATION_SPECS[operation]["family"] == "inv":
+        return choose_invariant_candidate(candidates, judgments, source, operation)
+    return legacy.choose_candidate(candidates, judgments, source, operation)
 
 
 CONNECTORS = {" and ", " while ", ", and ", ", while ", ", but ", " but ",
@@ -178,7 +276,21 @@ def parse_candidates(raw, source, operation):
     if not isinstance(value, list):
         raise ValueError("generator response must be a JSON array")
     if operation not in {"uninformative", "adding_contradiction", "conditional_clause"}:
-        candidates = legacy.parse_candidates(raw, source, operation, 3)
+        if operation == "synonym_replacement":
+            candidates = []
+            for item in value[:3]:
+                if not isinstance(item, dict) or item.get("target_label") != target_label(source, operation):
+                    continue
+                text = item.get("hypothesis")
+                if isinstance(text, str) and valid_synonym_edit(source["hypothesis"], text):
+                    if normalize(text) != normalize(source["premise"]) and text not in candidates:
+                        candidates.append(text.strip())
+        else:
+            candidates = legacy.parse_candidates(raw, source, operation, 3)
+        if OPERATION_SPECS[operation]["family"] == "inv":
+            candidates = [t for t in candidates if valid_invariant_tokens(source["hypothesis"], t)]
+        if operation == "pronoun_substitution":
+            candidates = [t for t in candidates if has_actual_pronoun_replacement(source["hypothesis"], t)]
         return [t for t in candidates if normalize(t) != normalize(source["hypothesis"])]
     accepted = []
     for item in value[:3]:
@@ -224,7 +336,8 @@ def generate_atomic(client, source, operation, seed=42, prior_trace=None):
     log = deepcopy(prior_trace) if prior_trace else {"operation": operation, "source_uid": source_uid(source), "attempts": []}
     if prior_trace:
         text, log = replay_atomic(source, operation, log, parse_candidates,
-                                 log.get("selected_hypothesis") if log.get("status") == "accepted" else None)
+                                 log.get("selected_hypothesis") if log.get("status") == "accepted" else None,
+                                 OPERATION_SPECS[operation]["family"] == "inv")
         if text:
             return text, log
     for round_index in range(len(log["attempts"]), 2):
@@ -232,18 +345,15 @@ def generate_atomic(client, source, operation, seed=42, prior_trace=None):
         attempt = {"round": round_index, "style_id": style_for(source, operation, round_index, seed)["id"],
                    "prompt_sha256": digest([SYSTEM, prompt])}
         try:
+            attempt.setdefault("model_call_events", []).append({"role":"generation", "max_tokens":700})
             raw = _call(client, SYSTEM, prompt, 0.7, 700)
             attempt["raw_generation"] = raw
             candidates = parse_candidates(raw, source, operation)
             attempt["candidates"] = candidates
             if candidates:
-                judge_prompt = build_judge_prompt(source, operation, candidates)
-                judgment_raw = _call(client, JUDGE_SYSTEM, judge_prompt, 0.0, 600)
-                attempt["judge_prompt_sha256"] = digest([JUDGE_SYSTEM, judge_prompt])
-                attempt["raw_judgment"] = judgment_raw
-                judgments = parse_judgments(judgment_raw, len(candidates))
+                judgments = judge_current(client, source, operation, candidates, attempt)
                 attempt["judgments"] = judgments
-                chosen = legacy.choose_candidate(candidates, judgments, source, operation)
+                chosen = choose_current(candidates, judgments, source, operation)
                 if chosen:
                     attempt["status"] = "accepted"
                     log["attempts"].append(attempt)
@@ -292,13 +402,11 @@ def generate_one(client, source, operation, seed=42, prior_trace=None):
         log["status"] = "no_effect"
         return None, log
     try:
-        prompt = build_judge_prompt(source, operation, [text])
-        raw = log.get("raw_final_judgment")
-        if raw is None:
-            raw = _call(client, JUDGE_SYSTEM, prompt, 0.0, 350)
-        log["raw_final_judgment"] = raw
-        judgments = parse_judgments(raw, 1)
-        chosen = legacy.choose_candidate([text], judgments, source, operation)
+        final_trace = log.setdefault("final_judge_trace", {})
+        judgments = judge_current(client, source, operation, [text], final_trace, max_tokens=350)
+        log["final_judge_trace"] = final_trace
+        log["raw_final_judgment"] = final_trace["raw_judgment"]
+        chosen = choose_current([text], judgments, source, operation)
         log["final_judgments"] = judgments
         if chosen:
             log.update(status="accepted", selected_hypothesis=text)
@@ -322,6 +430,7 @@ def generate_legacy_atomic(client, source, operation, prior_trace=None):
         attempt = {"round": round_index}
         try:
             prompt = legacy.build_generation_prompt(source, operation, 3)
+            attempt.setdefault("model_call_events", []).append({"role":"generation", "max_tokens":420})
             raw = legacy._completion(client, ALLOWED_MODEL, legacy.GENERATOR_SYSTEM_PROMPT,
                                       prompt, 0.65, 420)
             attempt["raw_generation"] = raw
@@ -330,6 +439,7 @@ def generate_legacy_atomic(client, source, operation, prior_trace=None):
             attempt["candidates"] = candidates
             if candidates:
                 judge_prompt = legacy.build_judge_prompt(source, operation, candidates)
+                attempt.setdefault("model_call_events", []).append({"role":"pair_and_equivalence_judge", "max_tokens":520})
                 raw_judgment = legacy._completion(client, ALLOWED_MODEL, legacy.JUDGE_SYSTEM_PROMPT,
                                                    judge_prompt, 0, 520)
                 attempt["raw_judgment"] = raw_judgment
@@ -378,6 +488,7 @@ def generate_legacy_bounded(client, source, operation, seed=42, prior_trace=None
     try:
         raw = log.get("raw_final_judgment")
         if raw is None:
+            log.setdefault("model_call_events", []).append({"role":"composite_final_judge", "max_tokens":350})
             raw = legacy._completion(client, ALLOWED_MODEL, legacy.JUDGE_SYSTEM_PROMPT,
                                       legacy.build_judge_prompt(source, operation, [text]), 0, 350)
         log["raw_final_judgment"] = raw

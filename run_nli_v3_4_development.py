@@ -51,16 +51,31 @@ def run(manifest, output, workers=2, design_python=None, round_number=1):
                         "generation_complete":report.get("generation_complete",False),
                         "followups":report.get("followups",0)}
                     write_json(output/"status.json",status)
-            if any(not status["jobs"][f"{arm}/{d}"]["generation_complete"] for d in ("train",*DATASETS)):
-                status["state"]="partial_generation";write_json(output/"status.json",status)
-                return 2
+            complete=all(status["jobs"][f"{arm}/{d}"]["generation_complete"] for d in ("train",*DATASETS))
             if arm=="v3_4" and design_python:
                 for dataset in ("train",*DATASETS):
+                    if not status["jobs"][f"{arm}/{dataset}"]["followups"]:
+                        continue
                     diagnostic=output/"design_diagnostics"/dataset
                     if not (diagnostic/"report.json").exists():
                         subprocess.run([str(design_python),str(ROOT/"analysis/design_nli_quality.py"),
                             "--manifest",str(manifest),"--dataset",dataset,"--generated",str(output/arm/f"{dataset}.jsonl"),
                             "--output",str(diagnostic)],cwd=ROOT,check=True)
+            if arm=="v3_4" and all(status["jobs"][f"{arm}/{d}"]["followups"] for d in ("train",*DATASETS)):
+                probe_root=output/f"{arm}_logreg"
+                if not (probe_root/"metrics.json").exists():
+                    subprocess.run([sys.executable,str(ROOT/"analysis/hypothesis_only_logreg.py"),
+                        "--train",str(output/arm/"train.jsonl"),"--test-root",str(output/arm),
+                        "--output",str(probe_root)],cwd=ROOT,check=True)
+                status["shortcut_passed"]=json.loads((probe_root/"metrics.json").read_text())["all_datasets_pass"]
+                status["shortcut_metrics_provisional"]=not complete
+                write_json(output/"status.json",status)
+            if not complete:
+                status["state"]="partial_generation";write_json(output/"status.json",status)
+                return 2
+            if arm=="v3_4" and not status.get("shortcut_passed",False):
+                status["state"]="needs_prompt_revision";write_json(output/"status.json",status)
+                return 2
         for arm in ("v3_4","v3_3","v3_3_original"):
             if not (output/f"{arm}_logreg"/"metrics.json").exists():
                 subprocess.run([sys.executable,str(ROOT/"analysis/hypothesis_only_logreg.py"),
