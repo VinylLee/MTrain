@@ -8,6 +8,7 @@ import random
 import time
 
 from . import core
+from .protocol import PROTOCOL_VERSION, has_api_failure
 from .data import (DATASETS, LABELS, audit, canonical_source, digest, export_followup,
                    export_source, is_source, load_dataset, normalize, quotas, read_jsonl,
                    sha256, source_uid, write_json, write_jsonl)
@@ -105,7 +106,7 @@ def _errors(value):
 
 def _code_hashes():
     root = Path(__file__).resolve().parents[1]
-    return {p: sha256(root / p) for p in ("nli_v3_4/core.py", "nli_v3_4/data.py", "nli_v3_4/workflow.py",
+    return {p: sha256(root / p) for p in ("nli_v3_4/core.py", "nli_v3_4/data.py", "nli_v3_4/workflow.py", "nli_v3_4/protocol.py", "nli_v3_4/recovery.py",
                 "augment_snli_all_label_mrs.py", "provenance_schema.py")}
 
 
@@ -142,7 +143,8 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
         "code_hashes": _code_hashes(), "target_followups": target, "quota_policy": quota_policy,
         "label_quotas": wanted, "candidate_count": 3, "rounds": 2,
         "max_refill_rounds": 4, "model": core.ALLOWED_MODEL,
-        "base_url": base_url, "timeout": timeout, "external_nli_in_pipeline": False}
+        "base_url": base_url, "timeout": timeout, "external_nli_in_pipeline": False,
+        "response_protocol": PROTOCOL_VERSION}
     meta = output.with_suffix(".run.json")
     journal = output.with_suffix(".generation_log.jsonl")
     report = output.with_suffix(".report.json")
@@ -162,11 +164,13 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
     accepted = [log["row"] for log in logs if log.get("row")]
     counts = Counter(r["label"] for r in accepted)
     mr_counts = Counter(r["mr_id"] for r in accepted)
-    processed = {log["request_id"] for log in logs}
+    processed = {log["request_id"] for log in logs if not log.get("pending_continuation")}
+    log_indices = {log["request_id"]: i for i, log in enumerate(logs)}
+    pending_ids = {log["request_id"] for log in logs if log.get("pending_continuation")}
     seen = {(normalize(s["premise"]), normalize(s["hypothesis"])) for s in sources}
     seen.update((normalize(r["premise"]), normalize(r["hypothesis"])) for r in accepted)
     source_by_id = {s["pair_id"]: s for s in sources}
-    if len(processed) != len(logs) or any(counts[l] > wanted[l] for l in range(3)):
+    if len(log_indices) != len(logs) or any(counts[l] > wanted[l] for l in range(3)):
         raise ValueError("duplicate journal request or exceeded quota")
     for entry in logs:
         source = source_by_id.get(entry.get("pair_id"))
@@ -196,7 +200,8 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
         quotas_met = all(counts[l] == wanted[l] for l in range(3))
         write_json(report, {**run_config, "state": state, "generation_complete": quotas_met,
             "overall_complete": False, "quality_status": "awaiting_human_review",
-            "sources": len(sources), "followups": len(accepted), "requests": len(processed),
+            "sources": len(sources), "followups": len(accepted), "requests": len(logs),
+            "pending_continuations": sum(bool(e.get("pending_continuation")) for e in logs),
             "label_counts": dict(counts), "label_deficits": {l: wanted[l]-counts[l] for l in range(3)},
             "mr_counts": dict(mr_counts), "output_sha256": sha256(output),
             "journal_sha256": sha256(journal), "external_nli_in_pipeline": False})
@@ -227,10 +232,13 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
                     if not labels:
                         break
                     label = min(labels, key=lambda l: (counts[l]/max(1,wanted[l]), l))
+                    def is_pending(s, op):
+                        return bool(pending_ids) and digest([source_uid(s), op, refill_round, seed, version]) in pending_ids
                     operation = min((op for op,q in queues[label].items() if q),
-                                    key=lambda op: (attempts_by_mr[op], mr_counts[op], op))
+                                    key=lambda op: (not any(is_pending(s, op) for s in queues[label][op]),
+                                                    attempts_by_mr[op], mr_counts[op], op))
                     queue = queues[label][operation]
-                    source = min(queue, key=lambda s: attempts_by_source[s["pair_id"]])
+                    source = min(queue, key=lambda s: (not is_pending(s, operation), attempts_by_source[s["pair_id"]]))
                     queue.remove(source)
                     request_id = digest([source_uid(source), operation, refill_round, seed, version])
                     if request_id in processed:
@@ -238,10 +246,13 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
                     if limit_requests is not None and new_requests >= limit_requests:
                         stop = True
                         break
+                    prior_entry = logs[log_indices[request_id]] if request_id in log_indices else None
+                    prior_trace = prior_entry["trace"] if prior_entry and prior_entry.get("pending_continuation") else None
                     if version == "v3.4":
-                        text, trace = core.generate_one(client, source, operation, seed + refill_round)
+                        text, trace = (core.generate_one(client, source, operation, seed + refill_round, prior_trace)
+                                       if prior_trace else core.generate_one(client, source, operation, seed + refill_round))
                     else:
-                        text, trace = core.generate_legacy_bounded(client, source, operation, seed + refill_round)
+                        text, trace = core.generate_legacy_bounded(client, source, operation, seed + refill_round, prior_trace)
                     entry = {"request_id": request_id, "pair_id": source["pair_id"],
                         "source_uid": source_uid(source), "operation": operation, "refill_round": refill_round,
                         "target_label": label, "trace": trace, "row": None}
@@ -258,11 +269,21 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
                             accepted.append(row); seen.add(key); counts[label] += 1; mr_counts[operation] += 1
                         else:
                             entry["discard_reason"] = "duplicate_or_unchanged"
-                    handle.write(json.dumps(entry, ensure_ascii=False)+"\n")
-                    handle.flush()
-                    processed.add(request_id); attempts_by_mr[operation] += 1; new_requests += 1
-                    attempts_by_source[source["pair_id"]] += 1
-                    consecutive_errors = consecutive_errors + 1 if _errors(trace) else 0
+                    if prior_entry:
+                        entry["prior_trace"] = prior_entry["trace"]
+                        entry["prior_execution_code_hashes"] = prior_entry.get("execution_code_hashes")
+                        logs[log_indices[request_id]] = entry
+                        handle.close()
+                        write_jsonl(journal, logs)
+                        handle = journal.open("a")
+                    else:
+                        handle.write(json.dumps(entry, ensure_ascii=False)+"\n"); handle.flush()
+                        log_indices[request_id] = len(logs); logs.append(entry)
+                        attempts_by_mr[operation] += 1
+                        attempts_by_source[source["pair_id"]] += 1
+                    processed.add(request_id); new_requests += 1
+                    pending_ids.discard(request_id)
+                    consecutive_errors = consecutive_errors + 1 if text is None and has_api_failure(trace) else 0
                     if new_requests % 10 == 0:
                         checkpoint("running")
                         print(dataset, version, "requests", len(processed), "accepted", dict(counts), flush=True)
@@ -272,6 +293,8 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
                 if stop or all(counts[l] == wanted[l] for l in range(3)):
                     break
     finally:
+        if 'handle' in locals():
+            handle.close()
         checkpoint("generation_complete" if all(counts[l] == wanted[l] for l in range(3)) else final_state)
     return json.loads(report.read_text())
 

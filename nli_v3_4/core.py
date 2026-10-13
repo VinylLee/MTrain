@@ -11,6 +11,7 @@ import re
 
 import augment_snli_all_label_mrs as legacy
 from .data import digest, normalize, source_uid
+from .protocol import parse_judgments, exception_fields, replay_atomic
 
 PROMPT_VERSION = "english-nli-pair-aware-all-label-mrs-v3.4"
 ALLOWED_MODEL = legacy.ALLOWED_MODEL
@@ -219,9 +220,14 @@ def _call(client, system, prompt, temperature, max_tokens):
     return legacy._completion(client, ALLOWED_MODEL, system, prompt, temperature, max_tokens)
 
 
-def generate_atomic(client, source, operation, seed=42):
-    log = {"operation": operation, "source_uid": source_uid(source), "attempts": []}
-    for round_index in range(2):
+def generate_atomic(client, source, operation, seed=42, prior_trace=None):
+    log = deepcopy(prior_trace) if prior_trace else {"operation": operation, "source_uid": source_uid(source), "attempts": []}
+    if prior_trace:
+        text, log = replay_atomic(source, operation, log, parse_candidates,
+                                 log.get("selected_hypothesis") if log.get("status") == "accepted" else None)
+        if text:
+            return text, log
+    for round_index in range(len(log["attempts"]), 2):
         prompt = build_generation_prompt(source, operation, round_index, seed)
         attempt = {"round": round_index, "style_id": style_for(source, operation, round_index, seed)["id"],
                    "prompt_sha256": digest([SYSTEM, prompt])}
@@ -235,7 +241,7 @@ def generate_atomic(client, source, operation, seed=42):
                 judgment_raw = _call(client, JUDGE_SYSTEM, judge_prompt, 0.0, 600)
                 attempt["judge_prompt_sha256"] = digest([JUDGE_SYSTEM, judge_prompt])
                 attempt["raw_judgment"] = judgment_raw
-                judgments = legacy.parse_judgments(judgment_raw, len(candidates))
+                judgments = parse_judgments(judgment_raw, len(candidates))
                 attempt["judgments"] = judgments
                 chosen = legacy.choose_candidate(candidates, judgments, source, operation)
                 if chosen:
@@ -245,31 +251,36 @@ def generate_atomic(client, source, operation, seed=42):
                     return chosen[0], log
             attempt["status"] = "rejected"
         except Exception as exc:
-            attempt.update(status="error", error=f"{type(exc).__name__}: {exc}")
+            attempt.update(exception_fields(exc))
         log["attempts"].append(attempt)
     log["status"] = "rejected"
     return None, log
 
 
-def generate_one(client, source, operation, seed=42):
+def generate_one(client, source, operation, seed=42, prior_trace=None):
     if not eligible(source, operation):
         return None, {"status": "ineligible", "operation": operation}
     if operation not in COMPOSITE_STAGE_PLANS:
-        return generate_atomic(client, source, operation, seed)
+        return generate_atomic(client, source, operation, seed, prior_trace) if prior_trace else generate_atomic(client, source, operation, seed)
     # One deterministic valid plan, avoiding hidden extra retries across plans.
     plans = COMPOSITE_STAGE_PLANS[operation]
     available = [p for p in plans if eligible(source, p[0])]
     if not available:
         return None, {"status": "ineligible", "operation": operation}
     index = int(digest([source_uid(source), operation, seed])[:8], 16) % len(available)
-    plan = available[index]
+    plan = tuple(prior_trace["applied_steps"]) if prior_trace else available[index]
+    if plan not in COMPOSITE_STAGE_PLANS[operation]:
+        raise ValueError("saved composite plan does not belong to its MR")
     working = dict(source)
-    log = {"operation": operation, "applied_steps": list(plan), "stage_logs": []}
-    for stage in plan:
+    log = deepcopy(prior_trace) if prior_trace else {"operation": operation, "applied_steps": list(plan)}
+    old_stages = log.get("stage_logs", [])
+    log["stage_logs"] = []
+    for stage_index, stage in enumerate(plan):
         if not eligible(working, stage):
             log["status"] = "ineligible_stage"
             return None, log
-        text, stage_log = generate_atomic(client, working, stage, seed)
+        prior = old_stages[stage_index] if stage_index < len(old_stages) else None
+        text, stage_log = generate_atomic(client, working, stage, seed, prior) if prior else generate_atomic(client, working, stage, seed)
         log["stage_logs"].append(stage_log)
         if text is None:
             log["status"] = "rejected"
@@ -282,37 +293,81 @@ def generate_one(client, source, operation, seed=42):
         return None, log
     try:
         prompt = build_judge_prompt(source, operation, [text])
-        raw = _call(client, JUDGE_SYSTEM, prompt, 0.0, 350)
+        raw = log.get("raw_final_judgment")
+        if raw is None:
+            raw = _call(client, JUDGE_SYSTEM, prompt, 0.0, 350)
         log["raw_final_judgment"] = raw
-        judgments = legacy.parse_judgments(raw, 1)
+        judgments = parse_judgments(raw, 1)
         chosen = legacy.choose_candidate([text], judgments, source, operation)
         log["final_judgments"] = judgments
         if chosen:
             log.update(status="accepted", selected_hypothesis=text)
             return text, log
     except Exception as exc:
-        log["error"] = f"{type(exc).__name__}: {exc}"
+        log.update(exception_fields(exc))
     log["status"] = "rejected"
     return None, log
 
 
-def generate_legacy_bounded(client, source, operation, seed=42):
+def generate_legacy_atomic(client, source, operation, prior_trace=None):
+    """Keep v3.3 prompts/filters and budget, with the common response-envelope repair."""
+    log = deepcopy(prior_trace) if prior_trace else {"operation": operation, "attempts": []}
+    if prior_trace:
+        parser = lambda raw, src, op: legacy.parse_candidates(raw, src, op, 3)
+        text, log = replay_atomic(source, operation, log, parser,
+                                 log.get("selected_hypothesis") if log.get("status") == "accepted" else None)
+        if text:
+            return text, log
+    for round_index in range(len(log["attempts"]), 2):
+        attempt = {"round": round_index}
+        try:
+            prompt = legacy.build_generation_prompt(source, operation, 3)
+            raw = legacy._completion(client, ALLOWED_MODEL, legacy.GENERATOR_SYSTEM_PROMPT,
+                                      prompt, 0.65, 420)
+            attempt["raw_generation"] = raw
+            attempt["prompt_sha256"] = digest([legacy.GENERATOR_SYSTEM_PROMPT, prompt])
+            candidates = legacy.parse_candidates(raw, source, operation, 3)
+            attempt["candidates"] = candidates
+            if candidates:
+                judge_prompt = legacy.build_judge_prompt(source, operation, candidates)
+                raw_judgment = legacy._completion(client, ALLOWED_MODEL, legacy.JUDGE_SYSTEM_PROMPT,
+                                                   judge_prompt, 0, 520)
+                attempt["raw_judgment"] = raw_judgment
+                judgments = parse_judgments(raw_judgment, len(candidates))
+                attempt["judgments"] = judgments
+                chosen = legacy.choose_candidate(candidates, judgments, source, operation)
+                if chosen:
+                    attempt["status"] = "accepted";log["attempts"].append(attempt)
+                    log.update(status="accepted", selected_hypothesis=chosen[0])
+                    return chosen[0], log
+            attempt["status"] = "rejected"
+        except Exception as exc:
+            attempt.update(exception_fields(exc))
+        log["attempts"].append(attempt)
+    log["status"] = "rejected"
+    return None, log
+
+
+def generate_legacy_bounded(client, source, operation, seed=42, prior_trace=None):
     """Replay unchanged v3.3 prompts with the same single-plan budget as v3.4."""
     if operation not in COMPOSITE_STAGE_PLANS:
-        return legacy._generate_atomic(client, client, source, operation,
-                                       ALLOWED_MODEL, ALLOWED_MODEL, 3, 2)
+        return generate_legacy_atomic(client, source, operation, prior_trace)
     plans = [p for p in COMPOSITE_STAGE_PLANS[operation] if eligible(source, p[0])]
     if not plans:
         return None, {"status": "ineligible", "operation": operation}
-    plan = plans[int(digest([source_uid(source), operation, seed])[:8], 16) % len(plans)]
-    log = {"operation": operation, "applied_steps": list(plan), "stage_logs": []}
+    plan = tuple(prior_trace["applied_steps"]) if prior_trace else plans[int(digest([source_uid(source), operation, seed])[:8], 16) % len(plans)]
+    if plan not in COMPOSITE_STAGE_PLANS[operation]:
+        raise ValueError("saved composite plan does not belong to its MR")
+    log = deepcopy(prior_trace) if prior_trace else {"operation": operation, "applied_steps": list(plan)}
+    old_stages = log.get("stage_logs", [])
+    log["stage_logs"] = []
     working = dict(source)
-    for stage in plan:
+    for stage_index, stage in enumerate(plan):
         if not eligible(working, stage):
             log["status"] = "ineligible_stage"
             return None, log
-        text, stage_log = legacy._generate_atomic(client, client, working, stage,
-                                                ALLOWED_MODEL, ALLOWED_MODEL, 3, 2)
+        prior = old_stages[stage_index] if stage_index < len(old_stages) else None
+        text, stage_log = generate_legacy_atomic(client, working, stage, prior)
         log["stage_logs"].append(stage_log)
         if text is None:
             log["status"] = "rejected"
@@ -321,15 +376,17 @@ def generate_legacy_bounded(client, source, operation, seed=42):
         working["hypothesis"] = text
     text = working["hypothesis"]
     try:
-        raw = legacy._completion(client, ALLOWED_MODEL, legacy.JUDGE_SYSTEM_PROMPT,
-                                  legacy.build_judge_prompt(source, operation, [text]), 0, 350)
+        raw = log.get("raw_final_judgment")
+        if raw is None:
+            raw = legacy._completion(client, ALLOWED_MODEL, legacy.JUDGE_SYSTEM_PROMPT,
+                                      legacy.build_judge_prompt(source, operation, [text]), 0, 350)
         log["raw_final_judgment"] = raw
-        judgments = legacy.parse_judgments(raw, 1)
+        judgments = parse_judgments(raw, 1)
         log["final_judgments"] = judgments
         if legacy.choose_candidate([text], judgments, source, operation):
             log.update(status="accepted", selected_hypothesis=text)
             return text, log
     except Exception as exc:
-        log["error"] = f"{type(exc).__name__}: {exc}"
+        log.update(exception_fields(exc))
     log["status"] = "rejected"
     return None, log

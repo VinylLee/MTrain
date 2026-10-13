@@ -8,9 +8,124 @@ pytest.importorskip("openai")
 from nli_v3_4 import core, workflow
 from nli_v3_4.data import canonical_source, digest, load_dataset, quotas, write_json, write_jsonl
 from analysis.design_nli_quality import development_rows
+from nli_v3_4.protocol import parse_judgments, ResponseFormatError, has_api_failure, exception_fields
 
 SOURCE = {"premise": "A man in a red shirt is carrying a box outdoors.",
           "hypothesis": "A man carries a box.", "label": 0, "pair_id": 7}
+
+
+VERDICT = {"index":0,"label":"entailment","source_label":"entailment",
+           "grammatical":True,"operation_valid":True,"source_equivalent":True,"reason":"ok"}
+
+
+def test_judge_array_and_object_have_identical_strict_verdicts():
+    array = parse_judgments(json.dumps([VERDICT]),1)
+    wrapped = parse_judgments(json.dumps({"evaluations":[VERDICT]}),1)
+    assert array == wrapped
+
+
+@pytest.mark.parametrize("changed", [{"label":"the premise seems plausible"},
+    {"label":0},{"grammatical":"true"},{"source_equivalent":None}])
+def test_judge_does_not_coerce_nonlabels_or_missing_booleans(changed):
+    assert parse_judgments(json.dumps([{**VERDICT,**changed}]),1) == {}
+
+
+def test_duplicate_or_shifted_indices_are_ambiguous_and_rejected():
+    for value in ([VERDICT,VERDICT],[{**VERDICT,"index":1}],[{**VERDICT,"index":True}]):
+        with pytest.raises(ResponseFormatError):parse_judgments(json.dumps(value),1)
+
+
+def test_format_error_is_not_a_service_failure():
+    fields=exception_fields(ResponseFormatError("missing evaluations"))
+    assert fields["error_kind"] == "response_format"
+    assert not has_api_failure({"attempts":[fields]})
+
+
+def test_cached_judgment_replay_does_not_spend_new_model_budget():
+    from nli_v3_4.recovery import OfflineClient
+    candidate="A man transports a box."
+    raw=json.dumps([{"hypothesis":candidate,"target_label":"entailment"}])
+    prior={"operation":"synonym_replacement","status":"rejected","attempts":[
+        {"raw_generation":raw,"candidates":[candidate],"raw_judgment":json.dumps([VERDICT]),
+         "status":"error","error":"ValueError: judge response lacks evaluations"}]}
+    text,trace=core.generate_atomic(OfflineClient(),SOURCE,"synonym_replacement",prior_trace=prior)
+    assert text == candidate and len(trace["attempts"]) == 1
+    assert trace["protocol_replay"]["original_status"] == "rejected"
+
+
+def test_api_errors_are_distinct_from_response_errors():
+    import httpx
+    from openai import APIConnectionError
+    fields=exception_fields(APIConnectionError(message="test transport failure",
+        request=httpx.Request("POST","http://localhost/v1/chat/completions")))
+    assert has_api_failure({"stage_logs":[fields]})
+
+
+def test_pending_journal_update_keeps_later_appends_and_request_identity(tmp_path,monkeypatch):
+    import openai
+    from nli_v3_4.data import source_uid
+    monkeypatch.setattr(openai,"OpenAI",lambda **kwargs:object())
+    monkeypatch.setattr(core.legacy,"_completion",lambda *args,**kwargs:"OK")
+    manifest=tiny_manifest(tmp_path);output=tmp_path/"resumed.jsonl"
+    workflow.run_generation(manifest,"train",output,target=3,limit_requests=0)
+    source=load_dataset(tmp_path/"original.jsonl")[1][0]
+    operation="composite_inv";key=digest([source_uid(source),operation,0,42,"v3.4"])
+    entry={"request_id":key,"pair_id":0,"source_uid":source_uid(source),"operation":operation,
+        "refill_round":0,"target_label":0,"pending_continuation":True,"row":None,
+        "trace":{"status":"rejected","applied_steps":list(core.COMPOSITE_STAGE_PLANS[operation][0])}}
+    write_jsonl(output.with_suffix(".generation_log.jsonl"),[entry])
+    prior_calls=[]
+    def generate(client,source,op,seed,prior_trace=None):
+        prior_calls.append(prior_trace)
+        text=source["hypothesis"].rstrip(".")+" transformed "+op
+        trace={"status":"accepted","selected_hypothesis":text}
+        if op in core.COMPOSITE_STAGE_PLANS:trace["applied_steps"]=list(core.COMPOSITE_STAGE_PLANS[op][0])
+        return text,trace
+    monkeypatch.setattr(core,"generate_one",generate)
+    result=workflow.run_generation(manifest,"train",output,target=3,resume=True)
+    journal=[json.loads(s) for s in output.with_suffix(".generation_log.jsonl").read_text().splitlines()]
+    assert prior_calls[0]==entry["trace"]
+    assert len(journal)==3 and len({r["request_id"] for r in journal})==3
+    assert all(r.get("row") for r in journal) and journal[0]["request_id"]==key
+    assert result["generation_complete"]
+
+
+def test_repeated_format_errors_do_not_abort_generation(tmp_path,monkeypatch):
+    import openai
+    monkeypatch.setattr(openai,"OpenAI",lambda **kwargs:object())
+    monkeypatch.setattr(core.legacy,"_completion",lambda *args,**kwargs:"OK")
+    calls=[]
+    def generate(client,source,op,seed):
+        calls.append(op)
+        if len(calls)<=4:return None,{"status":"rejected","attempts":[exception_fields(ResponseFormatError("test"))]}
+        trace={"status":"accepted"}
+        if op in core.COMPOSITE_STAGE_PLANS:trace["applied_steps"]=list(core.COMPOSITE_STAGE_PLANS[op][0])
+        return source["hypothesis"]+" transformed "+op,trace
+    monkeypatch.setattr(core,"generate_one",generate)
+    result=workflow.run_generation(tiny_manifest(tmp_path),"train",tmp_path/"generated.jsonl",target=3)
+    assert result["generation_complete"] and len(calls)>=7
+
+
+def test_composite_resume_only_calls_unused_final_judge(monkeypatch):
+    from nli_v3_4.data import source_uid
+    source={"premise":"The men carry a box.","hypothesis":"The men carry a box.","label":0,"pair_id":7}
+    intermediate="They carry a box."
+    final="They transport a box."
+    stages=[];working=dict(source)
+    for op,text in (("pronoun_substitution",intermediate),("synonym_replacement",final)):
+        stages.append({"operation":op,"source_uid":source_uid(working),"status":"rejected","attempts":[
+            {"raw_generation":json.dumps([{"hypothesis":text,"target_label":"entailment"}]),
+             "candidates":[text],"raw_judgment":json.dumps([VERDICT])}]})
+        working["hypothesis"]=text
+    prior={"operation":"composite_inv","status":"rejected",
+           "applied_steps":["pronoun_substitution","synonym_replacement"],"stage_logs":stages}
+    calls=[]
+    def call(client,system,prompt,temperature,tokens):
+        calls.append(prompt);return json.dumps([VERDICT])
+    monkeypatch.setattr(core,"_call",call)
+    text,trace=core.generate_one(object(),source,"composite_inv",prior_trace=prior)
+    assert text==final and len(calls)==1
+    assert trace["applied_steps"]==prior["applied_steps"]
 
 
 def plan(added="the man is not a doctor", connector=" and ", label="neutral"):

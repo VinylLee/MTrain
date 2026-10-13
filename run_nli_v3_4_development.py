@@ -26,6 +26,7 @@ def run(manifest, output, workers=2, design_python=None, round_number=1):
         raise ValueError("round identity changed; preserve it and use a new round directory")
     write_json(identity_path,identity)
     status={**identity,"state":"running","jobs":{},"human_review_complete":False}
+    write_json(output/"status.json", status)
 
     def generate(arm,dataset):
         path=output/arm/f"{dataset}.jsonl";path.parent.mkdir(parents=True,exist_ok=True)
