@@ -10,7 +10,8 @@ import json
 from pathlib import Path
 
 from . import core
-from .calls import CALL_PROTOCOL
+from .calls import CALL_PROTOCOL, validate_budget_reservation
+from .schemas import GENERATION_FORMAT
 from .data import (DATASETS, canonical_source, digest, export_followup, export_source,
                    load_dataset, normalize, read_jsonl, sha256, write_json, write_jsonl)
 from .protocol import PROTOCOL_VERSION
@@ -74,6 +75,10 @@ def migrate(source_root, manifest_path, target_root):
             source = source_by_id[entry["pair_id"]]
             operation = entry["operation"]
             entry["execution_code_hashes"] = metadata["code_hashes"]
+            if "budget_reservation" in entry:
+                validate_budget_reservation(entry, source, metadata["seed"], metadata["version"])
+                entry["protocol_revalidated"] = False
+                continue
             if entry.get("row"):
                 text, _ = core.generate_one(client, source, operation,
                                             metadata["seed"] + entry["refill_round"], entry["trace"])
@@ -122,7 +127,7 @@ def migrate(source_root, manifest_path, target_root):
                 row["idx"] = index
         new = target_root / "v3_4" / f"{dataset}.jsonl"
         migrated = {**metadata, "code_hashes": _code_hashes(), "response_protocol": PROTOCOL_VERSION,
-                    "call_protocol": CALL_PROTOCOL}
+                    "call_protocol": CALL_PROTOCOL, "generation_response_format": GENERATION_FORMAT}
         write_json(new.with_suffix(".run.json"), migrated)
         write_jsonl(new.with_suffix(".generation_log.jsonl"), logs)
         write_jsonl(new, rows)

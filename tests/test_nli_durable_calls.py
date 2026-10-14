@@ -118,6 +118,44 @@ def test_uncertain_call_has_its_own_error_category():
     assert not has_api_failure(fields)
 
 
+def test_unknown_interruption_reservation_cannot_produce_a_row_or_resume_calls():
+    from copy import deepcopy
+    from nli_v3_4.calls import validate_budget_reservation
+    from nli_v3_4.data import digest, source_uid
+    source = {"premise":"A man carries a box.","hypothesis":"A man carries a box.","label":1,"pair_id":7}
+    entry = {"budget_reservation":True,"row":None,"source_uid":source_uid(source),
+             "operation":"composite_inv","refill_round":1,
+             "trace":{"status":"interrupted_uncertain_budget_reserved",
+                      "actual_model_calls_known":False,"model_response_available":False}}
+    entry['request_id'] = digest([source_uid(source),'composite_inv',1,42,'v3.4'])
+    validate_budget_reservation(entry,source,42,'v3.4')
+    for patch in ({"row":{}},{"pending_continuation":True},{"budget_reservation":False},
+                  {"request_id":"wrong"},{"source_uid":"wrong"}):
+        changed = {**deepcopy(entry),**patch}
+        with pytest.raises(RuntimeError):validate_budget_reservation(changed,source,42,'v3.4')
+
+
+def test_only_generation_has_schema_judgment_labels_remain_unconstrained():
+    from nli_v3_4.schemas import invariant_generation_schema
+    source = {"premise":"A man carries a box.","hypothesis":"A man carries a box.","label":1,"pair_id":7}
+    value = {"label_rule":"inherit_source","edit_plan":{"edits":[
+        {"word_index":2,"old_word":"carries","replacement":"transports"}]}}
+    verdict = {"index":0,"source_to_candidate":"entailment","candidate_to_source":"entailment",
+               "source_equivalent":True,"grammatical":True,"operation_valid":True}
+    calls = []
+    def create(**kwargs):
+        calls.append(kwargs)
+        if len(calls)==1:
+            assert kwargs['response_format']==invariant_generation_schema(source,'synonym_replacement')
+            assert kwargs['temperature']==.7 and kwargs['max_tokens']==700
+            return completion(json.dumps([value]))
+        assert 'response_format' not in kwargs
+        assert kwargs['temperature']==0 and kwargs['max_tokens']==600
+        return completion(json.dumps([verdict]))
+    text,_ = core.generate_atomic(backend(create),source,'synonym_replacement')
+    assert text=='A man transports a box.' and len(calls)==2
+
+
 def test_legacy_call_metadata_migration_remains_resumable(tmp_path, monkeypatch):
     import openai
     from nli_v3_4 import workflow

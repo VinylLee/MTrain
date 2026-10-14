@@ -18,6 +18,7 @@ from .protocol import (parse_judgments, exception_fields, replay_atomic,
 from .invariants import (valid_invariant_tokens, valid_synonym_edit,
                          has_actual_pronoun_replacement, has_possible_sentence_antecedent,
                          realize_synonym_plan,agentive_passive_count,voice_preserves_form,WORD)
+from .schemas import FormattedClient, invariant_generation_schema
 
 PROMPT_VERSION = "english-nli-pair-aware-all-label-mrs-v3.4"
 DEVELOPMENT_REVISION = "round3_hypothesis_edit_plan"
@@ -480,7 +481,12 @@ def generate_atomic(client, source, operation, seed=42, prior_trace=None):
             attempt.setdefault("model_call_events", []).append({"role":"generation", "max_tokens":700})
             system=INVARIANT_SYSTEM if OPERATION_SPECS[operation]["family"]=="inv" else SYSTEM
             attempt["prompt_sha256"]=digest([system,prompt])
-            raw = _call(client, system, prompt, 0.7, 700)
+            generation_client = client
+            if OPERATION_SPECS[operation]["family"] == "inv":
+                response_format = invariant_generation_schema(source, operation)
+                generation_client = FormattedClient(client, response_format)
+                attempt["generation_response_format_sha256"] = digest(response_format)
+            raw = _call(generation_client, system, prompt, 0.7, 700)
             attempt["raw_generation"] = raw
             _record_generation_normalization(attempt, raw)
             candidates = parse_candidates(raw, source, operation)

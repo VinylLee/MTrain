@@ -4,10 +4,26 @@ import os
 from pathlib import Path
 from types import SimpleNamespace
 
-from .data import digest
+from .data import digest, source_uid
 from .protocol import InterruptedCallError
 
 CALL_PROTOCOL = "durable-sequence-v1"
+
+
+def validate_budget_reservation(entry, source, seed, version):
+    """An unknown interrupted request may consume budget, never yield a row."""
+    trace = entry.get("trace", {})
+    if (entry.get("budget_reservation") is not True or entry.get("row") is not None
+            or entry.get("pending_continuation")
+            or trace.get("status") != "interrupted_uncertain_budget_reserved"
+            or trace.get("actual_model_calls_known") is not False
+            or trace.get("model_response_available") is not False
+            or entry.get("source_uid") != source_uid(source)
+            or type(entry.get("refill_round")) is not int
+            or not 0 <= entry["refill_round"] < 4
+            or entry.get("request_id") != digest([source_uid(source), entry["operation"],
+                                                  entry["refill_round"], seed, version])):
+        raise RuntimeError("invalid interruption budget reservation")
 
 
 def _save(path, record):

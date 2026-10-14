@@ -1,6 +1,21 @@
 """Mechanical output schemas; no NLI predictions or source labels are consulted."""
 from .invariants import WORD
 
+GENERATION_FORMAT = "json_schema_atomic_INV_v1"
+
+
+class FormattedClient:
+    """Constrain one generation call; judgment calls keep their original format."""
+    def __init__(self, client, response_format):
+        self.client = client
+        self.response_format = response_format
+        self.chat = self.completions = self
+
+    def create(self, **kwargs):
+        if "response_format" in kwargs:
+            raise RuntimeError("generation response format supplied twice")
+        return self.client.chat.completions.create(**kwargs, response_format=self.response_format)
+
 
 def invariant_generation_schema(source,operation):
     marker={"type":"string","enum":["inherit_source"]}

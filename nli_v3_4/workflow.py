@@ -9,7 +9,8 @@ import random
 import time
 
 from . import core
-from .calls import CALL_PROTOCOL, DurableRequestClient
+from .calls import CALL_PROTOCOL, DurableRequestClient, validate_budget_reservation
+from .schemas import GENERATION_FORMAT
 from .protocol import PROTOCOL_VERSION, has_api_failure
 from .data import (DATASETS, LABELS, audit, canonical_source, digest, export_followup,
                    export_source, is_source, load_dataset, normalize, quotas, read_jsonl,
@@ -109,7 +110,7 @@ def _errors(value):
 def _code_hashes():
     root = Path(__file__).resolve().parents[1]
     return {p: sha256(root / p) for p in ("nli_v3_4/core.py", "nli_v3_4/data.py", "nli_v3_4/workflow.py", "nli_v3_4/protocol.py", "nli_v3_4/recovery.py", "nli_v3_4/invariants.py",
-                "nli_v3_4/processes.py", "nli_v3_4/calls.py", "run_nli_v3_4.py", "run_nli_v3_4_development.py",
+                "nli_v3_4/processes.py", "nli_v3_4/calls.py", "nli_v3_4/schemas.py", "run_nli_v3_4.py", "run_nli_v3_4_development.py",
                 "augment_snli_all_label_mrs.py", "provenance_schema.py")}
 
 
@@ -153,7 +154,8 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
         "scheduling_policy": "balance_attempts_within_target_label_and_MR_v2",
         "minimum_invariant_counts":inv_minimum,
         "base_url": base_url, "timeout": timeout, "external_nli_in_pipeline": False,
-        "response_protocol": PROTOCOL_VERSION, "call_protocol": CALL_PROTOCOL}
+        "response_protocol": PROTOCOL_VERSION, "call_protocol": CALL_PROTOCOL,
+        "generation_response_format": GENERATION_FORMAT if version == "v3.4" else "legacy_unconstrained"}
     meta = output.with_suffix(".run.json")
     journal = output.with_suffix(".generation_log.jsonl")
     report = output.with_suffix(".report.json")
@@ -191,6 +193,8 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
             raise ValueError("unknown journal source/operation")
         if entry["request_id"] != digest([source_uid(source), op, entry["refill_round"], seed, version]):
             raise ValueError("journal request identity mismatch")
+        if "budget_reservation" in entry:
+            validate_budget_reservation(entry, source, seed, version)
         row = entry.get("row")
         if row and (row["premise"] != source["premise"] or row["label"] !=
                     engine.LABEL_IDS[engine.target_label(source, op)] or row["mr_id"] != op):
