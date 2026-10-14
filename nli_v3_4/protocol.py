@@ -1,6 +1,7 @@
 """Same-model response protocol: strict labels and verdicts, flexible JSON envelope."""
 from __future__ import annotations
 import json
+import re
 
 from openai import APIConnectionError, APITimeoutError, APIStatusError
 import augment_snli_all_label_mrs as legacy
@@ -12,6 +13,19 @@ PROTOCOL_VERSION = "gemma-verdict-envelope-v2"
 
 class ResponseFormatError(ValueError):
     pass
+
+
+def generator_json(raw):
+    """Read one complete JSON value, allowing only redundant trailing closers."""
+    cleaned=legacy.strip_think(raw).strip()
+    fence=re.fullmatch(r"```(?:json)?\s*([\s\S]*?)\s*```",cleaned,re.I)
+    if fence:cleaned=fence.group(1).strip()
+    try:value,end=json.JSONDecoder().raw_decode(cleaned)
+    except ValueError:return legacy.extract_json(raw)
+    suffix=cleaned[end:].strip()
+    if suffix and (len(suffix)>3 or any(c not in '}]' for c in suffix)):
+        raise ResponseFormatError("generator response has extra content after its JSON value")
+    return value
 
 
 def parse_judgments(raw, candidate_count, require_bidirectional=False):

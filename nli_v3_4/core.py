@@ -12,7 +12,7 @@ import re
 import augment_snli_all_label_mrs as legacy
 from .data import digest, normalize, source_uid
 from .protocol import (parse_judgments, exception_fields, replay_atomic,
-                       parse_equivalence_judgments, choose_invariant_candidate)
+                       parse_equivalence_judgments, choose_invariant_candidate,generator_json)
 from .invariants import (valid_invariant_tokens, valid_synonym_edit,
                          has_actual_pronoun_replacement, has_possible_sentence_antecedent,
                          realize_synonym_plan,agentive_passive_count,voice_preserves_form,WORD)
@@ -344,7 +344,7 @@ CONNECTORS = {" and ", " while ", ", and ", ", while ", ", but ", " but ",
 
 
 def parse_candidates(raw, source, operation):
-    value = legacy.extract_json(raw)
+    value = generator_json(raw)
     # One typed candidate object is semantically identical to a one-item array.
     # Do not interpret arbitrary response objects or relax any candidate checks.
     if isinstance(value,dict) and value.get("label_rule")=="inherit_source" and (

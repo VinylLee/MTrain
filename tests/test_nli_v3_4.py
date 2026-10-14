@@ -241,6 +241,15 @@ def test_single_invariant_candidate_object_has_same_checks_as_array():
     with pytest.raises(ValueError):core.parse_candidates('{"message":"not a candidate"}',source,"synonym_replacement")
 
 
+def test_redundant_json_closer_preserves_candidate_and_never_guesses_missing_content():
+    source={**SOURCE,"hypothesis":"The children buy books."}
+    value={"label_rule":"inherit_source","edit_plan":{"edits":[{"word_index":2,"old_word":"buy","replacement":"purchase"}]}}
+    raw=json.dumps([value])
+    assert core.parse_candidates('```json\n'+raw+'}\n```',source,"synonym_replacement")==["The children purchase books."]
+    with pytest.raises(ValueError):core.parse_candidates(raw+' {"other":"candidate"}',source,"synonym_replacement")
+    assert not core.parse_candidates(json.dumps([{"label_rule":"inherit_source","edit_plan":{"edits":[{"word_index":1,"old_word":"buy","replacement":"purchase"}]}}])+']}',source,"synonym_replacement")
+
+
 def test_voice_accepts_nonvisual_verb_and_preexisting_locative_by_but_keeps_aspect():
     source={**SOURCE,"hypothesis":"The manager rejected the proposal by the river."}
     assert core.eligible(source,"voice_switch")
