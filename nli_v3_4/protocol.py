@@ -15,6 +15,10 @@ class ResponseFormatError(ValueError):
     pass
 
 
+class InterruptedCallError(RuntimeError):
+    """A previously dispatched API call has no durably recorded response."""
+
+
 def generator_json(raw):
     """Read one complete JSON value, allowing only redundant trailing closers."""
     cleaned=legacy.strip_think(raw).strip()
@@ -79,6 +83,9 @@ def parse_judgments(raw, candidate_count, require_bidirectional=False):
 
 
 def exception_fields(exc):
+    if isinstance(exc, InterruptedCallError):
+        return {"status": "interrupted_call", "error_kind": "interrupted_call",
+                "error": f"{type(exc).__name__}: {exc}"}
     if isinstance(exc, (APIConnectionError, APITimeoutError, APIStatusError)):
         return {"status": "error", "error_kind": "api", "error": f"{type(exc).__name__}: {exc}"}
     if isinstance(exc, ValueError):

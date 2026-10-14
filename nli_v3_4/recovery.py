@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 
 from . import core
+from .calls import CALL_PROTOCOL
 from .data import (DATASETS, canonical_source, digest, export_followup, export_source,
                    load_dataset, normalize, read_jsonl, sha256, write_json, write_jsonl)
 from .protocol import PROTOCOL_VERSION
@@ -50,6 +51,13 @@ def migrate(source_root, manifest_path, target_root):
         logs = read_jsonl(old.with_suffix(".generation_log.jsonl"))
         if len({r["request_id"] for r in logs}) != len(logs):
             raise ValueError("duplicate original journal request")
+        call_directory = old.with_suffix(".calls")
+        if call_directory.exists():
+            completed_ids = {entry["request_id"] for entry in logs
+                             if not entry.get("pending_continuation")}
+            unfinished = {p.name for p in call_directory.iterdir() if p.is_dir()} - completed_ids
+            if unfinished:
+                raise ValueError("resume unfinished durable requests with their original code before migration")
         accepted = [deepcopy(e["row"]) for e in logs if e.get("row")]
         counts = Counter(r["label"] for r in accepted)
         wanted = {int(k): v for k, v in metadata["label_quotas"].items()}
@@ -101,7 +109,8 @@ def migrate(source_root, manifest_path, target_root):
             for index, row in enumerate(rows):
                 row["idx"] = index
         new = target_root / "v3_4" / f"{dataset}.jsonl"
-        migrated = {**metadata, "code_hashes": _code_hashes(), "response_protocol": PROTOCOL_VERSION}
+        migrated = {**metadata, "code_hashes": _code_hashes(), "response_protocol": PROTOCOL_VERSION,
+                    "call_protocol": CALL_PROTOCOL}
         write_json(new.with_suffix(".run.json"), migrated)
         write_jsonl(new.with_suffix(".generation_log.jsonl"), logs)
         write_jsonl(new, rows)

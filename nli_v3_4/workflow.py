@@ -9,6 +9,7 @@ import random
 import time
 
 from . import core
+from .calls import CALL_PROTOCOL, DurableRequestClient
 from .protocol import PROTOCOL_VERSION, has_api_failure
 from .data import (DATASETS, LABELS, audit, canonical_source, digest, export_followup,
                    export_source, is_source, load_dataset, normalize, quotas, read_jsonl,
@@ -108,7 +109,7 @@ def _errors(value):
 def _code_hashes():
     root = Path(__file__).resolve().parents[1]
     return {p: sha256(root / p) for p in ("nli_v3_4/core.py", "nli_v3_4/data.py", "nli_v3_4/workflow.py", "nli_v3_4/protocol.py", "nli_v3_4/recovery.py", "nli_v3_4/invariants.py",
-                "nli_v3_4/processes.py", "run_nli_v3_4.py", "run_nli_v3_4_development.py",
+                "nli_v3_4/processes.py", "nli_v3_4/calls.py", "run_nli_v3_4.py", "run_nli_v3_4_development.py",
                 "augment_snli_all_label_mrs.py", "provenance_schema.py")}
 
 
@@ -152,7 +153,7 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
         "scheduling_policy": "balance_attempts_within_target_label_and_MR_v2",
         "minimum_invariant_counts":inv_minimum,
         "base_url": base_url, "timeout": timeout, "external_nli_in_pipeline": False,
-        "response_protocol": PROTOCOL_VERSION}
+        "response_protocol": PROTOCOL_VERSION, "call_protocol": CALL_PROTOCOL}
     meta = output.with_suffix(".run.json")
     journal = output.with_suffix(".generation_log.jsonl")
     report = output.with_suffix(".report.json")
@@ -281,14 +282,23 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
                         break
                     prior_entry = logs[log_indices[request_id]] if request_id in log_indices else None
                     prior_trace = prior_entry["trace"] if prior_entry and prior_entry.get("pending_continuation") else None
+                    # A continuation starts at its saved trace; a crashed fresh
+                    # request restarts at call zero and replays its durable responses.
+                    origin = digest(prior_trace) if prior_trace else "fresh"
+                    call_directory = output.with_suffix(".calls") / request_id / origin
+                    request_client = DurableRequestClient(client, call_directory)
                     if version == "v3.4":
-                        text, trace = (core.generate_one(client, source, operation, seed + refill_round, prior_trace)
-                                       if prior_trace else core.generate_one(client, source, operation, seed + refill_round))
+                        text, trace = (core.generate_one(request_client, source, operation, seed + refill_round, prior_trace)
+                                       if prior_trace else core.generate_one(request_client, source, operation, seed + refill_round))
                     else:
-                        text, trace = core.generate_legacy_bounded(client, source, operation, seed + refill_round, prior_trace)
+                        text, trace = core.generate_legacy_bounded(request_client, source, operation, seed + refill_round, prior_trace)
                     entry = {"request_id": request_id, "pair_id": source["pair_id"],
                         "source_uid": source_uid(source), "operation": operation, "refill_round": refill_round,
-                        "target_label": label, "trace": trace, "row": None}
+                        "target_label": label, "trace": trace, "row": None,
+                        "call_ledger": str(call_directory.resolve()),
+                        "call_replay": {"new_calls": request_client.new_calls,
+                                        "replayed_calls": request_client.replayed_calls,
+                                        "uncertain_calls": request_client.uncertain_calls}}
                     if text:
                         key = (normalize(source["premise"]), normalize(text))
                         if key not in seen:
