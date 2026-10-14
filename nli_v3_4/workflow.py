@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict, deque
 import json
+import math
 from pathlib import Path
 import random
 import time
@@ -137,6 +138,10 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
         raise ValueError("four refill rounds are fixed for comparable runs")
     wanted = quotas(target) if quota_policy == "balanced" else original_quotas(info["development_original_followup_labels"], target)
     engine = core if version == "v3.4" else legacy
+    # Keep legacy ablations at their old allocation so the contribution of this
+    # declared distribution change can be reported separately from wording.
+    inv_minimum = {l:(wanted[l] if l==0 else int(math.ceil(wanted[l]*core.MINIMUM_INV_FRACTION)))
+                   for l in range(3)} if version=="v3.4" else {l:0 for l in range(3)}
     run_config = {"version": version, "stage": stage, "dataset": dataset, "seed": seed,
         "manifest_sha256": sha256(manifest_path), "source_sha256": digest(sources),
         "contract_sha256": core.fingerprint() if version == "v3.4" else legacy.config_fingerprint(
@@ -145,6 +150,7 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
         "label_quotas": wanted, "candidate_count": 3, "rounds": 2,
         "max_refill_rounds": 4, "model": core.ALLOWED_MODEL,
         "scheduling_policy": "balance_attempts_within_target_label_and_MR_v2",
+        "minimum_invariant_counts":inv_minimum,
         "base_url": base_url, "timeout": timeout, "external_nli_in_pipeline": False,
         "response_protocol": PROTOCOL_VERSION}
     meta = output.with_suffix(".run.json")
@@ -166,6 +172,7 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
     accepted = [log["row"] for log in logs if log.get("row")]
     counts = Counter(r["label"] for r in accepted)
     mr_counts = Counter(r["mr_id"] for r in accepted)
+    inv_counts = Counter(r["label"] for r in accepted if engine.OPERATION_SPECS[r["mr_id"]]["family"]=="inv")
     processed = {log["request_id"] for log in logs if not log.get("pending_continuation")}
     log_indices = {log["request_id"]: i for i, log in enumerate(logs)}
     pending_ids = {log["request_id"] for log in logs if log.get("pending_continuation")}
@@ -174,6 +181,8 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
     source_by_id = {s["pair_id"]: s for s in sources}
     if len(log_indices) != len(logs) or any(counts[l] > wanted[l] for l in range(3)):
         raise ValueError("duplicate journal request or exceeded quota")
+    if any(counts[l]-inv_counts[l]>wanted[l]-inv_minimum[l] for l in range(3)):
+        raise ValueError("journal exceeds the declared non-invariant allocation")
     for entry in logs:
         source = source_by_id.get(entry.get("pair_id"))
         op = entry.get("operation")
@@ -199,7 +208,7 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
             for idx, row in enumerate(rows):
                 row["idx"] = idx
         write_jsonl(output, rows)
-        quotas_met = all(counts[l] == wanted[l] for l in range(3))
+        quotas_met = all(counts[l] == wanted[l] and inv_counts[l]>=inv_minimum[l] for l in range(3))
         call_counts = Counter()
         def count_calls(trace):
             if isinstance(trace, dict):
@@ -216,6 +225,7 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
             "sources": len(sources), "followups": len(accepted), "requests": len(logs),
             "pending_continuations": sum(bool(e.get("pending_continuation")) for e in logs),
             "label_counts": dict(counts), "label_deficits": {l: wanted[l]-counts[l] for l in range(3)},
+            "invariant_label_counts":dict(inv_counts),"invariant_deficits":{l:max(0,inv_minimum[l]-inv_counts[l]) for l in range(3)},
             "mr_counts": dict(mr_counts), "output_sha256": sha256(output),
             "model_call_counts":dict(call_counts), "source_label_family_counts":dict(source_label_family),
             "journal_sha256": sha256(journal), "external_nli_in_pipeline": False})
@@ -245,13 +255,19 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
             for refill_round in range(max_refill_rounds):
                 queues = scheduling_queues(sources, seed, refill_round, engine)
                 while True:
-                    labels = [l for l in range(3) if counts[l] < wanted[l] and any(queues[l].values())]
+                    def permitted_ops(l):
+                        return [op for op,q in queues[l].items() if q and
+                            (engine.OPERATION_SPECS[op]["family"]=="inv" or counts[l]-inv_counts[l]<wanted[l]-inv_minimum[l])]
+                    labels = [l for l in range(3) if counts[l] < wanted[l] and permitted_ops(l)]
                     if not labels:
                         break
                     label = min(labels, key=lambda l: (counts[l]/max(1,wanted[l]), l))
                     def is_pending(s, op):
                         return bool(pending_ids) and digest([source_uid(s), op, refill_round, seed, version]) in pending_ids
-                    operation = min((op for op,q in queues[label].items() if q),
+                    operations=permitted_ops(label)
+                    invariant_ops=[op for op in operations if engine.OPERATION_SPECS[op]["family"]=="inv"]
+                    if inv_counts[label]<inv_minimum[label] and invariant_ops:operations=invariant_ops
+                    operation = min(operations,
                                     key=lambda op: (not any(is_pending(s, op) for s in queues[label][op]),
                                                     attempts_by_label_mr[(label,op)], accepted_by_label_mr[(label,op)], op))
                     queue = queues[label][operation]
@@ -285,6 +301,7 @@ def run_generation(manifest_path, dataset, output, *, stage="development", versi
                             entry["row"] = row
                             accepted.append(row); seen.add(key); counts[label] += 1; mr_counts[operation] += 1
                             accepted_by_label_mr[(label,operation)] += 1
+                            if engine.OPERATION_SPECS[operation]["family"]=="inv":inv_counts[label]+=1
                         else:
                             entry["discard_reason"] = "duplicate_or_unchanged"
                     if prior_entry:

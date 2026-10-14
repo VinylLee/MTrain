@@ -14,9 +14,12 @@ from .data import digest, normalize, source_uid
 from .protocol import (parse_judgments, exception_fields, replay_atomic,
                        parse_equivalence_judgments, choose_invariant_candidate)
 from .invariants import (valid_invariant_tokens, valid_synonym_edit,
-                         has_actual_pronoun_replacement, has_possible_sentence_antecedent)
+                         has_actual_pronoun_replacement, has_possible_sentence_antecedent,
+                         realize_synonym_plan,agentive_passive_count,voice_preserves_form,WORD)
 
 PROMPT_VERSION = "english-nli-pair-aware-all-label-mrs-v3.4"
+DEVELOPMENT_REVISION = "round3_hypothesis_edit_plan"
+MINIMUM_INV_FRACTION = .8
 ALLOWED_MODEL = legacy.ALLOWED_MODEL
 LABELS = legacy.LABELS
 LABEL_IDS = legacy.LABEL_IDS
@@ -51,6 +54,11 @@ OPERATION_SPECS["uninformative"]["instruction"] += """ Prefer a detail independe
 the supported action. Routine activity consequences (such as focusing on a screen
 while playing a computer game) are poor unresolved additions. Choose a clearly
 unstated attribute, preference, possession or background fact about the same subject."""
+OPERATION_SPECS["uninformative"]["instruction"] += """ Use the same detail domains as
+adding_contradiction: clothing, colors, objects, location, count/age, activities,
+possessions, background or preferences. Choose an UNSTATED value in this premise.
+Do not reserve occupation, appointments or weather for neutral; observable details
+can be neutral too. A detail can be negative when its positive alternative is unknown."""
 OPERATION_SPECS["adding_contradiction"]["instruction"] = """Retain the entire SOURCE
 HYPOTHESIS proposition and add exactly one claim incompatible with a DIFFERENT fact
 guaranteed by the PREMISE but absent from the source hypothesis. Keep the statement
@@ -85,30 +93,49 @@ Judge grammar and the requested edit operation independently of the NLI label.
 An INV may preserve a source that is neutral or contradicted; never repair it to
 be entailed. Hypothesis equivalence is evaluated in a separate isolated pass.
 Return JSON only, no hidden reasoning; reason is a short diagnostic tag."""
-EQUIVALENCE_SYSTEM = """Judge a conservative invariant text edit. You see only the
-original text and its rewritten candidates, with NO external factual premise.
-Assume the original text is true to check original -> rewritten entailment, then
-assume the rewritten text is true to check rewritten -> original entailment.
-Exact equivalence requires BOTH directions. Preserve all qualifications, entities,
-roles, counts, gender, tense, aspect and polarity. Same topic is insufficient.
-Judge the requested operation independently. Output JSON only with short reason tags."""
-EQUIVALENCE_SYSTEM += """ A requested operation is NOT evidence that it was obeyed.
-Read the two actual strings; never assume a replacement is a synonym.
-Calibration examples (both directions matter):
-original='The bell is loud.', rewritten='The bell is quiet.': contradiction,
-contradiction, equivalent=false.
-original='He always helps.', rewritten='He helps.': entailment, neutral,
-equivalent=false because the reverse does not guarantee 'always'.
-original='The men carry a box.', rewritten='A box is carried by the men.':
-entailment, entailment, equivalent=true. These are examples, not your verdicts."""
+INVARIANT_SYSTEM = """You are a precise English text editor, not a factual answerer.
+Apply only the requested transformation to the supplied original text. Preserve
+every proposition, entity, role, count, quantifier, qualification, tense, aspect and
+polarity. Do not fix the content even if it seems false, unusual or impossible.
+Do not add any outside fact or inferred intent. Return only the requested JSON array.
+There is no NLI label to predict: each safe invariant edit inherits its source label.
+For synonyms preserve specificity in BOTH directions. Bad replacements include
+walking/moving, boat/vessel, floating/drifting, holding/grasping, hitting/hammering,
+playing/enjoying, and man/person: these can change the action, category or facts.
+Possible exact contextual synonyms include buy/purchase, photograph/photo and
+children/kids; still check the actual context. Unsafe edit => []."""
+EQUIVALENCE_SYSTEM = """Classify the TWO supplied NLI comparisons independently.
+For each comparison, assume ONLY its own premise text is true. Entailment requires
+every claim in its hypothesis to be guaranteed. Contradiction requires logical
+incompatibility. Otherwise return neutral. A requested edit is only a CLAIM about
+the output, NEVER evidence that the two texts entail each other. No external world
+or original factual premise is available. Check the actual words first, then check
+grammar and compliance with the claimed operation independently. Output JSON only.
+Calibration: 'He walks' -> 'He moves' is entailment; the reverse is neutral.
+'A boat floats' -> 'A boat drifts' is neutral; motion was added.
+'He holds a ball' -> 'He grasps a ball' is neutral; grip was added.
+'A man works' -> 'A person works' is entailment; the reverse is neutral.
+'He always helps' -> 'He helps' is entailment; the reverse is neutral.
+'She was reading' -> 'She is reading' is neutral; time was changed.
+'Jo buys food' -> 'Jill buys food' is neutral; the name was changed.
+'He buys food' -> 'He purchases food' and its reverse are entailment.
+'Two children play a game' -> 'Two kids play a game' and reverse are entailment:
+in this human context kids/children have the same specificity, age and number.
+'They await help' -> 'They wait for help' and reverse are entailment.
+'The men carry a box' -> 'A box is carried by the men' and reverse are entailment.
+Different word strings alone are not evidence for neutral; check their contextual
+meaning. A kid explicitly described as a goat is a different context.
+These examples do not establish a verdict for any supplied candidate."""
 
 
 def contract():
-    return {"prompt_version": PROMPT_VERSION, "operations": OPERATION_SPECS,
+    return {"prompt_version": PROMPT_VERSION, "development_revision":DEVELOPMENT_REVISION,"operations": OPERATION_SPECS,
             "composite_plans": COMPOSITE_STAGE_PLANS, "styles": STYLE_POOL,
-            "system": SYSTEM, "judge_system": JUDGE_SYSTEM, "equivalence_system": EQUIVALENCE_SYSTEM,
+            "system": SYSTEM, "invariant_generation_system":INVARIANT_SYSTEM,"judge_system": JUDGE_SYSTEM, "equivalence_system": EQUIVALENCE_SYSTEM,
             "candidate_count": 3, "rounds": 2, "model": ALLOWED_MODEL,
             "quota_policy": "equal_followup_labels_E_N_C_v1",
+            "minimum_invariant_fraction":MINIMUM_INV_FRACTION,
+            "invariant_generation_schema":"hypothesis_only_indexed_synonym_plan_or_voice_v3",
             "judge_protocol": "same_gemma_INV_HH_only_other_MRs_PH_v2",
             "inv_label_rule": "strict_bidirectional_equivalence_preserves_source_gold",
             "inv_judge_calls_per_attempt": 1, "other_judge_calls_per_attempt": 1,
@@ -121,6 +148,10 @@ def fingerprint():
 
 
 def eligible(source, operation):
+    if operation=="voice_switch":
+        # Applicability is semantic (agent/action/patient), not a visual-verb list.
+        # The editor and same-model judge must abstain if conversion is unavailable.
+        return len(WORD.findall(source["hypothesis"]))>=3
     if not legacy.eligible(source, operation):
         return False
     if operation == "pronoun_substitution":
@@ -141,12 +172,39 @@ def target_label(source, operation):
 
 
 def style_for(source, operation, round_index, seed=42):
-    key = digest([source_uid(source), operation, round_index, seed, PROMPT_VERSION])
+    identity=source["hypothesis"] if OPERATION_SPECS[operation]["family"]=="inv" else source_uid(source)
+    key = digest([identity, operation, round_index, seed, PROMPT_VERSION])
     return STYLE_POOL[int(key[:12], 16) % len(STYLE_POOL)]
 
 
 def build_generation_prompt(source, operation, round_index=0, seed=42):
     style = style_for(source, operation, round_index, seed)
+    if OPERATION_SPECS[operation]["family"]=="inv":
+        payload={"original_text":source["hypothesis"],"operation":operation,
+                 "style_preference":style["instruction"]}
+        if operation=="synonym_replacement":
+            payload["word_slots"]=[{"word_index":i,"word":m.group()} for i,m in enumerate(WORD.finditer(source["hypothesis"]))]
+            schema='{"label_rule":"inherit_source","edit_plan":{"edits":[{"word_index":1,"old_word":"<copy this indexed word>","replacement":"<exact contextual synonym>"}]}}'
+            output="""Return up to 3 objects in the schema below. Exactly 1 or 2 source
+content-word slots may change. A short synonym phrase is allowed, but all other text
+is copied by code. Use exact supplied indices and old_word strings. No hypothesis
+field, no factual correction, no function-word-only edit, no named-entity or quantity
+change. Preserve grammatical form. 'inherit_source' is a literal label_rule marker,
+not a predicted NLI label. No safe exact synonym => []."""
+        else:
+            schema='{"label_rule":"inherit_source","hypothesis":"<safe rewritten text>"}'
+            output="""Return up to 3 objects in the schema below. Copy every content
+word except the main verb inflection needed for voice conversion or the NP genuinely
+replaced by the requested pronoun operation. Preserve quantifier scope, tense and
+aspect: 'is carrying' needs 'is being carried', not 'has been carried'. A passive
+needs the same explicit agent and patient; an intransitive clause has no safe voice
+conversion. Preserve names and qualifications exactly. 'inherit_source' is a literal
+label_rule marker. No safe requested edit => []."""
+        return f"""{json.dumps(payload,ensure_ascii=False)}
+{OPERATION_SPECS[operation]['instruction']}
+{output}
+SCHEMA: [{schema}]
+Do not assume the requested edit is always possible."""
     payload = {"premise": source["premise"], "source_hypothesis": source["hypothesis"],
                "source_label": LABELS[source["label"]], "target_label": target_label(source, operation)}
     addition = ""
@@ -230,13 +288,14 @@ No preset example labels, no prose."""
 
 def build_equivalence_prompt(source, operation, candidates):
     # Deliberately exclude factual premise, gold labels, target labels and role.
-    payload = {"operation":operation,"operation_requirement":OPERATION_SPECS[operation]["instruction"],
-               "original_text":source["hypothesis"],
-               "candidates":[{"index":i,"rewritten_text":text} for i,text in enumerate(candidates)]}
+    payload = {"comparisons":[{"index":i,"source_to_candidate":{"premise":source["hypothesis"],"hypothesis":text},
+                          "candidate_to_source":{"premise":text,"hypothesis":source["hypothesis"]}}
+                          for i,text in enumerate(candidates)],
+               "claimed_operation":operation,"operation_requirement":OPERATION_SPECS[operation]["instruction"]}
     return f"""{json.dumps(payload, ensure_ascii=False)}
-For each supplied candidate, compare ONLY original_text and rewritten_text.
-source_to_candidate: take original_text as the premise and rewritten_text as hypothesis.
-candidate_to_source: take rewritten_text as the premise and original_text as hypothesis.
+For each index classify the supplied source_to_candidate and candidate_to_source
+premise/hypothesis pairs separately. Ignore the operation claim until after both
+NLI labels are decided; the claim is not evidence that it was obeyed.
 Use strict NLI labels entailment, neutral, contradiction for each direction.
 Preserve even information that might be false in the real world. No outside text
 or world facts are part of these comparisons. Dropping 'always', an object, gender,
@@ -292,14 +351,23 @@ def parse_candidates(raw, source, operation):
         if operation == "synonym_replacement":
             candidates = []
             for item in value[:3]:
-                if not isinstance(item, dict) or item.get("target_label") != target_label(source, operation):
+                if not isinstance(item, dict) or item.get("label_rule") != "inherit_source":
                     continue
-                text = item.get("hypothesis")
-                if isinstance(text, str) and valid_synonym_edit(source["hypothesis"], text):
+                text = realize_synonym_plan(source["hypothesis"],item.get("edit_plan"))
+                if text:
                     if normalize(text) != normalize(source["premise"]) and text not in candidates:
                         candidates.append(text.strip())
         else:
-            candidates = legacy.parse_candidates(raw, source, operation, 3)
+            if OPERATION_SPECS[operation]["family"]=="inv":
+                bound=[{**item,"target_label":target_label(source,operation)} for item in value[:3]
+                       if isinstance(item,dict) and item.get("label_rule")=="inherit_source"]
+                if operation=="voice_switch":
+                    candidates=[item["hypothesis"].strip() for item in bound if isinstance(item.get("hypothesis"),str)
+                                and agentive_passive_count(source["hypothesis"])!=agentive_passive_count(item["hypothesis"])
+                                and voice_preserves_form(source["hypothesis"],item["hypothesis"])
+                                and 3 <= len(item["hypothesis"].split()) <= max(45,len(source["hypothesis"].split())*2+8)]
+                else:candidates=legacy.parse_candidates(json.dumps(bound),source,operation,3)
+            else:candidates = legacy.parse_candidates(raw, source, operation, 3)
         if OPERATION_SPECS[operation]["family"] == "inv":
             candidates = [t for t in candidates if valid_invariant_tokens(source["hypothesis"], t)]
         if operation == "pronoun_substitution":
@@ -359,7 +427,9 @@ def generate_atomic(client, source, operation, seed=42, prior_trace=None):
                    "prompt_sha256": digest([SYSTEM, prompt])}
         try:
             attempt.setdefault("model_call_events", []).append({"role":"generation", "max_tokens":700})
-            raw = _call(client, SYSTEM, prompt, 0.7, 700)
+            system=INVARIANT_SYSTEM if OPERATION_SPECS[operation]["family"]=="inv" else SYSTEM
+            attempt["prompt_sha256"]=digest([system,prompt])
+            raw = _call(client, system, prompt, 0.7, 700)
             attempt["raw_generation"] = raw
             candidates = parse_candidates(raw, source, operation)
             attempt["candidates"] = candidates

@@ -19,6 +19,12 @@ VERDICT = {"index":0,"label":"entailment","source_label":"entailment",
            "source_to_candidate":"entailment","candidate_to_source":"entailment"}
 
 
+def synonym_object(source,text):
+    before=core.WORD.findall(source["hypothesis"]);after=core.WORD.findall(text)
+    edits=[{"word_index":i,"old_word":a,"replacement":b} for i,(a,b) in enumerate(zip(before,after)) if a!=b]
+    return {"label_rule":"inherit_source","edit_plan":{"edits":edits}}
+
+
 def test_inv_cannot_pass_without_both_independent_entailment_directions():
     for changed in ({"candidate_to_source":"neutral"}, {"source_to_candidate":"contradiction"}):
         verdict=parse_judgments(json.dumps([{**VERDICT,**changed}]),1,require_bidirectional=True)[0]
@@ -30,7 +36,8 @@ def test_inv_cannot_pass_without_both_independent_entailment_directions():
 def test_synonym_permits_two_words_but_preserves_spelled_numbers_and_qualifiers():
     source={**SOURCE,"hypothesis":"The men carry a box."}
     def parsed(text):
-        return core.parse_candidates(json.dumps([{"hypothesis":text,"target_label":"entailment"}]),source,"synonym_replacement")
+        if len(core.WORD.findall(text))!=len(core.WORD.findall(source["hypothesis"])):return []
+        return core.parse_candidates(json.dumps([synonym_object(source,text)]),source,"synonym_replacement")
     assert parsed("The men transport a carton.")
     assert parsed("The men transport a carton")
     source["hypothesis"]="The men carry a box"
@@ -45,21 +52,21 @@ def test_synonym_permits_two_words_but_preserves_spelled_numbers_and_qualifiers(
 def test_pronoun_requires_removed_np_and_handles_repeated_np_occurrences():
     source={**SOURCE,"hypothesis":"The instructors help, and are always available."}
     text="The instructors help, and they are always available."
-    assert not core.parse_candidates(json.dumps([{"hypothesis":text,"target_label":"entailment"}]),source,"pronoun_substitution")
+    assert not core.parse_candidates(json.dumps([{"hypothesis":text,"label_rule":"inherit_source"}]),source,"pronoun_substitution")
     source["hypothesis"]="The men carry a box and the men walk."
     text="The men carry a box and they walk."
-    assert core.parse_candidates(json.dumps([{"hypothesis":text,"target_label":"entailment"}]),source,"pronoun_substitution")
+    assert core.parse_candidates(json.dumps([{"hypothesis":text,"label_rule":"inherit_source"}]),source,"pronoun_substitution")
     source["hypothesis"]="A man carries a box."
     text="He carries a box."
-    assert not core.parse_candidates(json.dumps([{"hypothesis":text,"target_label":"entailment"}]),source,"pronoun_substitution")
+    assert not core.parse_candidates(json.dumps([{"hypothesis":text,"label_rule":"inherit_source"}]),source,"pronoun_substitution")
     source["hypothesis"]="A man watches another man at the table."
     text="He watches another man at the table."
-    assert not core.parse_candidates(json.dumps([{"hypothesis":text,"target_label":"entailment"}]),source,"pronoun_substitution")
+    assert not core.parse_candidates(json.dumps([{"hypothesis":text,"label_rule":"inherit_source"}]),source,"pronoun_substitution")
     assert not core.eligible(source,"pronoun_substitution")
     source["hypothesis"]="The woman rests and the woman sleeps."
     for text in ("The woman rests and he sleeps.", "She rests and the woman sleeps."):
-        assert not core.parse_candidates(json.dumps([{"hypothesis":text,"target_label":"entailment"}]),source,"pronoun_substitution")
-    assert core.parse_candidates(json.dumps([{"hypothesis":"The woman rests and she sleeps.","target_label":"entailment"}]),source,"pronoun_substitution")
+        assert not core.parse_candidates(json.dumps([{"hypothesis":text,"label_rule":"inherit_source"}]),source,"pronoun_substitution")
+    assert core.parse_candidates(json.dumps([{"hypothesis":"The woman rests and she sleeps.","label_rule":"inherit_source"}]),source,"pronoun_substitution")
 
 
 def test_judge_array_and_object_have_identical_strict_verdicts():
@@ -88,7 +95,7 @@ def test_format_error_is_not_a_service_failure():
 def test_cached_judgment_replay_does_not_spend_new_model_budget():
     from nli_v3_4.recovery import OfflineClient
     candidate="A man transports a box."
-    raw=json.dumps([{"hypothesis":candidate,"target_label":"entailment"}])
+    raw=json.dumps([synonym_object(SOURCE,candidate)])
     prior={"operation":"synonym_replacement","status":"rejected","attempts":[
         {"raw_generation":raw,"candidates":[candidate],"raw_judgment":json.dumps([VERDICT]),
          "raw_equivalence_judgment":json.dumps([VERDICT]),
@@ -159,7 +166,7 @@ def test_composite_resume_only_calls_unused_final_judge(monkeypatch):
     stages=[];working=dict(source)
     for op,text in (("pronoun_substitution",intermediate),("synonym_replacement",final)):
         stages.append({"operation":op,"source_uid":source_uid(working),"status":"rejected","attempts":[
-            {"raw_generation":json.dumps([{"hypothesis":text,"target_label":"entailment"}]),
+            {"raw_generation":json.dumps([synonym_object(working,text) if op=="synonym_replacement" else {"hypothesis":text,"label_rule":"inherit_source"}]),
              "candidates":[text],"raw_judgment":json.dumps([VERDICT])}]})
         stages[-1]["attempts"][0]["raw_equivalence_judgment"]=json.dumps([VERDICT])
         working["hypothesis"]=text
@@ -202,6 +209,53 @@ def test_roles_and_corpus_metadata_cannot_change_prompt_or_style():
     for op in core.OPERATION_SPECS:
         assert core.build_generation_prompt(train, op) == core.build_generation_prompt(test, op)
         assert core.style_for(train, op, 1) == core.style_for(test, op, 1)
+
+
+def test_invariant_editor_is_blind_to_premise_gold_id_and_role():
+    changed={**SOURCE,"premise":"SECRET FACTUAL WORLD","label":2,"pair_id":999,"corpus":"test"}
+    for op in ("synonym_replacement","voice_switch","pronoun_substitution"):
+        first=core.build_generation_prompt(SOURCE,op)
+        assert first==core.build_generation_prompt(changed,op)
+        assert SOURCE["premise"] not in first and '"source_label"' not in first and '"target_label"' not in first
+
+
+def test_synonym_plan_copies_text_and_rejects_changed_quantity_name_and_added_qualifier():
+    from nli_v3_4.invariants import realize_synonym_plan
+    text="The children buy two books."
+    plan={"edits":[{"word_index":1,"old_word":"children","replacement":"kids"},
+                   {"word_index":2,"old_word":"buy","replacement":"purchase"}]}
+    assert realize_synonym_plan(text,plan)=="The kids purchase two books."
+    assert realize_synonym_plan(text,{"edits":[{"word_index":3,"old_word":"two","replacement":"three"}]}) is None
+    assert realize_synonym_plan("John buys books.",{"edits":[{"word_index":0,"old_word":"John","replacement":"Joe"}]}) is None
+    assert realize_synonym_plan("He walks.",{"edits":[{"word_index":1,"old_word":"walks","replacement":"walks happily"}]}) is None
+    assert realize_synonym_plan(text,{"edits":[{"word_index":True,"old_word":"children","replacement":"kids"}]}) is None
+    assert realize_synonym_plan("They await help.",{"edits":[{"word_index":1,"old_word":"await","replacement":"wait for"}]})=="They wait for help."
+
+
+def test_voice_accepts_nonvisual_verb_and_preexisting_locative_by_but_keeps_aspect():
+    source={**SOURCE,"hypothesis":"The manager rejected the proposal by the river."}
+    assert core.eligible(source,"voice_switch")
+    def parsed(text):return core.parse_candidates(json.dumps([{"label_rule":"inherit_source","hypothesis":text}]),source,"voice_switch")
+    assert parsed("The proposal was rejected by the manager by the river.")
+    source["hypothesis"]="The men are carrying a box."
+    assert not parsed("A box has been carried by the men.")
+    assert parsed("A box is being carried by the men.")
+
+
+def test_noninvariant_outputs_cannot_fill_missing_invariant_quota(tmp_path,monkeypatch):
+    import openai
+    monkeypatch.setattr(openai,"OpenAI",lambda **kwargs:object())
+    monkeypatch.setattr(core.legacy,"_completion",lambda *args,**kwargs:"OK")
+    def generate(client,source,op,seed):
+        if core.OPERATION_SPECS[op]["family"]=="inv":return None,{"status":"rejected"}
+        trace={"status":"accepted"}
+        if op in core.COMPOSITE_STAGE_PLANS:trace["applied_steps"]=list(core.available_plans(source,op)[0])
+        return source["hypothesis"]+f" {op} {seed}",trace
+    monkeypatch.setattr(core,"generate_one",generate)
+    report=workflow.run_generation(tiny_manifest(tmp_path),"train",tmp_path/"quota.jsonl",target=30)
+    assert not report["generation_complete"]
+    assert all(count<=2 for count in report["label_counts"].values())
+    assert report["invariant_deficits"]=={"0":10,"1":8,"2":8}
 
 
 def test_added_negative_unknown_fact_is_allowed_and_source_is_realized_by_code():
