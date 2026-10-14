@@ -61,6 +61,12 @@ def migrate(source_root, manifest_path, target_root):
         accepted = [deepcopy(e["row"]) for e in logs if e.get("row")]
         counts = Counter(r["label"] for r in accepted)
         wanted = {int(k): v for k, v in metadata["label_quotas"].items()}
+        minimum_inv = {l: int(metadata.get("minimum_invariant_counts", {}).get(str(l), 0))
+                       for l in range(3)}
+        inv_counts = Counter(r["label"] for r in accepted
+                             if core.OPERATION_SPECS[r["mr_id"]]["family"] == "inv")
+        if any(counts[l] - inv_counts[l] > wanted[l] - minimum_inv[l] for l in range(3)):
+            raise ValueError("original journal exceeds its non-invariant allocation")
         seen = {(normalize(s["premise"]), normalize(s["hypothesis"])) for s in sources}
         seen.update((normalize(r["premise"]), normalize(r["hypothesis"])) for r in accepted)
         recovered, pending = 0, 0
@@ -90,6 +96,10 @@ def migrate(source_root, manifest_path, target_root):
             if counts[label] >= wanted[label]:
                 entry["recovery_discard_reason"] = "label_quota_filled"
                 continue
+            is_inv = core.OPERATION_SPECS[operation]["family"] == "inv"
+            if not is_inv and counts[label] - inv_counts[label] >= wanted[label] - minimum_inv[label]:
+                entry["recovery_discard_reason"] = "non_invariant_allocation_filled"
+                continue
             if key in seen:
                 entry["recovery_discard_reason"] = "duplicate_or_unchanged"
                 continue
@@ -99,6 +109,8 @@ def migrate(source_root, manifest_path, target_root):
             entry["row"] = row
             entry["row_origin"] = "cached_judgment_protocol_replay"
             accepted.append(row); seen.add(key); counts[label] += 1; recovered += 1
+            if is_inv:
+                inv_counts[label] += 1
         grouped = defaultdict(list)
         for row in accepted:
             grouped[row["pair_id"]].append(row)
@@ -114,12 +126,14 @@ def migrate(source_root, manifest_path, target_root):
         write_json(new.with_suffix(".run.json"), migrated)
         write_jsonl(new.with_suffix(".generation_log.jsonl"), logs)
         write_jsonl(new, rows)
-        complete = all(counts[l] == wanted[l] for l in range(3))
+        complete = all(counts[l] == wanted[l] and inv_counts[l] >= minimum_inv[l] for l in range(3))
         write_json(new.with_suffix(".report.json"), {**migrated,
             "state": "generation_complete" if complete else "recovered_partial", "generation_complete": complete,
             "overall_complete": False, "sources": len(sources), "followups": len(accepted),
             "requests": len(logs), "label_counts": dict(counts),
             "label_deficits": {l: wanted[l]-counts[l] for l in range(3)},
+            "invariant_label_counts": dict(inv_counts),
+            "invariant_deficits": {l:max(0, minimum_inv[l]-inv_counts[l]) for l in range(3)},
             "mr_counts": dict(Counter(r["mr_id"] for r in accepted)),
             "quality_status": "awaiting_human_review", "output_sha256": sha256(new),
             "journal_sha256": sha256(new.with_suffix(".generation_log.jsonl"))})

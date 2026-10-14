@@ -2,6 +2,7 @@
 from __future__ import annotations
 import json
 import re
+from collections import Counter
 
 from openai import APIConnectionError, APITimeoutError, APIStatusError
 import augment_snli_all_label_mrs as legacy
@@ -19,11 +20,58 @@ class InterruptedCallError(RuntimeError):
     """A previously dispatched API call has no durably recorded response."""
 
 
-def generator_json(raw):
-    """Read one complete JSON value, allowing only redundant trailing closers."""
+def normalize_generator_json_suffix(raw):
+    """Reorder only the final closing tokens when the open stack is unique.
+
+    No field, literal, index or token count is changed. Missing/extra delimiters,
+    an unfinished string and malformed earlier nesting cannot be repaired here.
+    """
     cleaned=legacy.strip_think(raw).strip()
     fence=re.fullmatch(r"```(?:json)?\s*([\s\S]*?)\s*```",cleaned,re.I)
     if fence:cleaned=fence.group(1).strip()
+    try:
+        json.loads(cleaned)
+        return cleaned, False
+    except ValueError:
+        pass
+    suffix = re.search(r"[}\]\s]+$", cleaned)
+    if not suffix:
+        return cleaned, False
+    prefix = cleaned[:suffix.start()]
+    stack = []
+    quoted = escaped = False
+    for character in prefix:
+        if quoted:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == '"':
+                quoted = False
+        elif character == '"':
+            quoted = True
+        elif character in "[{":
+            stack.append(character)
+        elif character in "]}":
+            if not stack or {"}": "{", "]": "["}[character] != stack.pop():
+                return cleaned, False
+    if quoted or not stack:
+        return cleaned, False
+    closers = [c for c in suffix.group() if c in "]}"]
+    expected = [{"{": "}", "[": "]"}[c] for c in reversed(stack)]
+    if Counter(closers) != Counter(expected):
+        return cleaned, False
+    normalized = prefix + "".join(expected)
+    try:
+        json.loads(normalized)
+    except ValueError:
+        return cleaned, False
+    return normalized, True
+
+
+def generator_json(raw):
+    """Read complete JSON, with bounded mechanical closing-token compatibility."""
+    cleaned, _ = normalize_generator_json_suffix(raw)
     try:value,end=json.JSONDecoder().raw_decode(cleaned)
     except ValueError:return legacy.extract_json(raw)
     suffix=cleaned[end:].strip()

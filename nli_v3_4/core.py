@@ -6,13 +6,15 @@ identity and export schema never enter prompts, style selection or candidate ran
 from __future__ import annotations
 
 from copy import deepcopy
+from hashlib import sha256
 import json
 import re
 
 import augment_snli_all_label_mrs as legacy
 from .data import digest, normalize, source_uid
 from .protocol import (parse_judgments, exception_fields, replay_atomic,
-                       parse_equivalence_judgments, choose_invariant_candidate,generator_json)
+                       parse_equivalence_judgments, choose_invariant_candidate,generator_json,
+                       normalize_generator_json_suffix)
 from .invariants import (valid_invariant_tokens, valid_synonym_edit,
                          has_actual_pronoun_replacement, has_possible_sentence_antecedent,
                          realize_synonym_plan,agentive_passive_count,voice_preserves_form,WORD)
@@ -418,12 +420,56 @@ def _call(client, system, prompt, temperature, max_tokens):
     return legacy._completion(client, ALLOWED_MODEL, system, prompt, temperature, max_tokens)
 
 
+def _record_generation_normalization(attempt, raw):
+    normalized, changed = normalize_generator_json_suffix(raw)
+    if changed:
+        attempt["generation_json_normalization"] = {
+            "method": "unique_final_closing_stack_v1", "raw_sha256": sha256(raw.encode()).hexdigest(),
+            "normalized_sha256": sha256(normalized.encode()).hexdigest(), "literals_and_indices_changed": False}
+
+
+def _continue_unused_judgments(client, source, operation, log):
+    """Judge saved proposals only in slots that have never been dispatched."""
+    if len(log["attempts"]) > 2:
+        raise RuntimeError("saved generation exceeds the two-round budget")
+    for attempt in log["attempts"]:
+        raw = attempt.get("raw_generation")
+        if not raw or any(key in attempt for key in ("raw_judgment", "raw_equivalence_judgment")):
+            continue
+        events = attempt.get("model_call_events")
+        if not isinstance(events, list) or not any(e.get("role") == "generation" for e in events):
+            continue  # Missing call provenance is not proof of an unused slot.
+        if any("judge" in event.get("role", "") for event in events):
+            continue  # Failed/uncertain judgment calls still consume their slots.
+        try:
+            candidates = parse_candidates(raw, source, operation)
+            if not candidates:
+                continue
+            attempt["candidates"] = candidates
+            _record_generation_normalization(attempt, raw)
+            attempt["unused_judgment_continuation"] = True
+            judgments = judge_current(client, source, operation, candidates, attempt)
+            attempt["judgments"] = judgments
+            chosen = choose_current(candidates, judgments, source, operation)
+            if chosen:
+                attempt["status"] = "accepted"
+                log.update(status="accepted", selected_hypothesis=chosen[0])
+                return chosen[0]
+            attempt["continuation_status"] = "rejected"
+        except Exception as exc:
+            attempt["continuation_error"] = exception_fields(exc)
+    return None
+
+
 def generate_atomic(client, source, operation, seed=42, prior_trace=None):
     log = deepcopy(prior_trace) if prior_trace else {"operation": operation, "source_uid": source_uid(source), "attempts": []}
     if prior_trace:
         text, log = replay_atomic(source, operation, log, parse_candidates,
                                  log.get("selected_hypothesis") if log.get("status") == "accepted" else None,
                                  OPERATION_SPECS[operation]["family"] == "inv")
+        if text:
+            return text, log
+        text = _continue_unused_judgments(client, source, operation, log)
         if text:
             return text, log
     for round_index in range(len(log["attempts"]), 2):
@@ -436,6 +482,7 @@ def generate_atomic(client, source, operation, seed=42, prior_trace=None):
             attempt["prompt_sha256"]=digest([system,prompt])
             raw = _call(client, system, prompt, 0.7, 700)
             attempt["raw_generation"] = raw
+            _record_generation_normalization(attempt, raw)
             candidates = parse_candidates(raw, source, operation)
             attempt["candidates"] = candidates
             if candidates:
