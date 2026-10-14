@@ -232,6 +232,15 @@ def test_synonym_plan_copies_text_and_rejects_changed_quantity_name_and_added_qu
     assert realize_synonym_plan("They await help.",{"edits":[{"word_index":1,"old_word":"await","replacement":"wait for"}]})=="They wait for help."
 
 
+def test_single_invariant_candidate_object_has_same_checks_as_array():
+    source={**SOURCE,"hypothesis":"The children buy books."}
+    value={"label_rule":"inherit_source","edit_plan":{"edits":[{"word_index":2,"old_word":"buy","replacement":"purchase"}]}}
+    assert core.parse_candidates(json.dumps(value),source,"synonym_replacement")==core.parse_candidates(json.dumps([value]),source,"synonym_replacement")==["The children purchase books."]
+    value["edit_plan"]["edits"][0]["word_index"]=1
+    assert not core.parse_candidates(json.dumps(value),source,"synonym_replacement")
+    with pytest.raises(ValueError):core.parse_candidates('{"message":"not a candidate"}',source,"synonym_replacement")
+
+
 def test_voice_accepts_nonvisual_verb_and_preexisting_locative_by_but_keeps_aspect():
     source={**SOURCE,"hypothesis":"The manager rejected the proposal by the river."}
     assert core.eligible(source,"voice_switch")

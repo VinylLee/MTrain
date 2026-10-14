@@ -345,6 +345,11 @@ CONNECTORS = {" and ", " while ", ", and ", ", while ", ", but ", " but ",
 
 def parse_candidates(raw, source, operation):
     value = legacy.extract_json(raw)
+    # One typed candidate object is semantically identical to a one-item array.
+    # Do not interpret arbitrary response objects or relax any candidate checks.
+    if isinstance(value,dict) and value.get("label_rule")=="inherit_source" and (
+            "edit_plan" in value or "hypothesis" in value):
+        value=[value]
     if not isinstance(value, list):
         raise ValueError("generator response must be a JSON array")
     if operation not in {"uninformative", "adding_contradiction", "conditional_clause"}:
