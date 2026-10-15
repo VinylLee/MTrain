@@ -11,8 +11,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from nli_v3_4 import core
 from nli_v3_4.data import DATASETS, canonical_source, digest, is_source, load_dataset, sha256, write_json, write_jsonl
 
+HISTORICAL_DEVELOPMENT = "preliminary_development_historical_reference"
+
 
 def package(old_root, new_root, output, per_mr=20, seed=42, stage="development"):
+    if stage not in {"development", "production", HISTORICAL_DEVELOPMENT}:
+        raise ValueError("unknown review stage")
     if per_mr not in {20, 40}:
         raise ValueError("review size must be 20 or 40 pairs per MR")
     output = Path(output)
@@ -28,12 +32,17 @@ def package(old_root, new_root, output, per_mr=20, seed=42, stage="development")
             source_by_id = {r["pair_id"]: r for r in sources}
             if path.with_suffix(".run.json").exists():
                 meta = json.loads(path.with_suffix(".run.json").read_text())
-            elif stage == "production" and path == paths[0]:
+            elif stage in {"production", HISTORICAL_DEVELOPMENT} and path == paths[0]:
                 meta = {"stage": "historical_baseline", "source_sha256": digest([canonical_source(r) for r in sources])}
             else:
                 raise ValueError("missing generation provenance")
-            if meta["stage"] not in ({"development"} if stage == "development" else {"production", "historical_baseline"}):
+            allowed_stages = ({"development"} if stage == "development" else
+                              {"development", "historical_baseline"} if stage == HISTORICAL_DEVELOPMENT else
+                              {"production", "historical_baseline"})
+            if meta["stage"] not in allowed_stages:
                 raise ValueError("review stage differs from generation stage")
+            if meta.get("kind") == "development_quality_repair_micro_pilot_v1" and stage != HISTORICAL_DEVELOPMENT:
+                raise ValueError("quality micro-pilot requires preliminary historical review scope")
             follows = {}
             occurrences = defaultdict(int)
             for r in rows:
@@ -92,6 +101,8 @@ def package(old_root, new_root, output, per_mr=20, seed=42, stage="development")
         "answers": [{"review_id": r["review_id"], "label": None, "grammatical": None,
                      "operation_valid": None, "source_equivalent": None} for r in label_rows]})
     write_json(output/"manifest.json", {"stage": stage, "contract_sha256": core.fingerprint(),
+        "freeze_eligible": stage == "development", "baseline_kind": (
+            "historical_v3_3_on_frozen_development_sources" if stage == HISTORICAL_DEVELOPMENT else "generated_or_production_reference"),
         "datasets": provenance, "pairs": len(requested), "per_mr_target": per_mr,
         "available_new_review_units_per_mr": {op: len(groups[op]) for op in core.OPERATION_SPECS},
         "new_only_units": sum(k["version"]=="v3.4" and not k["paired"] for k in private),
@@ -172,7 +183,7 @@ def main():
     q=sub.add_parser("package")
     q.add_argument("--old-root",type=Path,required=True);q.add_argument("--new-root",type=Path,required=True)
     q.add_argument("--output",type=Path,required=True);q.add_argument("--per-mr",type=int,default=20)
-    q.add_argument("--stage",choices=("development","production"),default="development")
+    q.add_argument("--stage",choices=("development","production",HISTORICAL_DEVELOPMENT),default="development")
     q=sub.add_parser("assess")
     q.add_argument("--review-root",type=Path,required=True);q.add_argument("--answers",type=Path,required=True)
     q.add_argument("--output",type=Path,required=True)

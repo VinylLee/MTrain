@@ -72,6 +72,14 @@ token上限及评审接受条件不变。此项为显式解码格式干预，不
 52,800条开发生成提示词哈希未变，离线检查未调用模型，也未修改681条旧增强或原审核。
 检查与覆盖代价见`local_runs/nli_v3_4_20261015_quality_repair/REPORT_zh.md`。
 尚无修补后的独立人工质量结论或全量捷径结果；原追加补齐提案未获批准也未执行。
+`run_nli_quality_repair_pilot.py`另提供待批准的小规模质量诊断：在五来源各取10个
+未参与上一批人工复核的来源组，五种MR各2请求，固定50请求、至多250次Gemma
+调用，无补齐轮次。计划绑定单个输出目录和代码／数据哈希，继续使用第3轮提示词。
+prepare／validate不调用模型；run需单独确认新增预算。该诊断保留失败与弃权，
+不改变原681条数据或完整实验配额，也不作为最终质量／捷径验收证据。盲审入口
+支持显式`preliminary_development_historical_reference`范围，不给历史参考伪造
+生成元数据；该范围不能用于冻结。具体清单与执行命令见本地
+`local_runs/nli_v3_4_20261015_quality_repair/quality_pilot_proposal_v2/PLAN_zh.md`。
 
 `analysis/design_nli_quality.py` **只允许开发来源和 development 生成记录**。
 DeBERTa 与 RoBERTa MNLI 的用途是定位提示词错误并帮助修改通用规则。
