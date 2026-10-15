@@ -19,6 +19,7 @@ from .invariants import (valid_invariant_tokens, valid_synonym_edit,
                          has_actual_pronoun_replacement, has_possible_sentence_antecedent,
                          realize_synonym_plan,agentive_passive_count,voice_preserves_form,WORD)
 from .schemas import FormattedClient, invariant_generation_schema
+from .realization import realize_added_clause, CLAUSE_REALIZER_VERSION
 
 PROMPT_VERSION = "english-nli-pair-aware-all-label-mrs-v3.4"
 DEVELOPMENT_REVISION = "round3_hypothesis_edit_plan"
@@ -142,7 +143,8 @@ def contract():
             "judge_protocol": "same_gemma_INV_HH_only_other_MRs_PH_v2",
             "inv_label_rule": "strict_bidirectional_equivalence_preserves_source_gold",
             "inv_judge_calls_per_attempt": 1, "other_judge_calls_per_attempt": 1,
-            "invariant_parser": "aligned_one_or_two_synonyms_numeric_words_actual_np_v2",
+            "invariant_parser": "fixed_spans_simple_transitive_voice_roles_tense_v3",
+            "clause_realizer": CLAUSE_REALIZER_VERSION,
             "external_nli_in_production": False}
 
 
@@ -398,7 +400,7 @@ def parse_candidates(raw, source, operation):
                 continue
         elif connector not in CONNECTORS:
             continue
-        text = source["hypothesis"].strip().rstrip(".!?") + connector + added.strip().rstrip(".!?") + "."
+        text = realize_added_clause(source["hypothesis"], connector, added)
         if normalize(text) in {normalize(source["hypothesis"]), normalize(source["premise"])}:
             continue
         if not 3 <= len(text.split()) <= max(45, len(source["hypothesis"].split()) * 2 + 16):
@@ -429,6 +431,28 @@ def _record_generation_normalization(attempt, raw):
             "normalized_sha256": sha256(normalized.encode()).hexdigest(), "literals_and_indices_changed": False}
 
 
+def _record_candidate_realizations(attempt, raw, source, operation, candidates):
+    if operation not in {"uninformative", "adding_contradiction", "conditional_clause"}:
+        return
+    changes = []
+    value = generator_json(raw)
+    if not isinstance(value, list):
+        return
+    for item in value[:3]:
+        if not isinstance(item, dict) or not isinstance(item.get("edit_plan"), dict):
+            continue
+        plan = item["edit_plan"]
+        added, connector = plan.get("added_clause"), plan.get("connector")
+        if not isinstance(added, str) or not isinstance(connector, str):
+            continue
+        before = source["hypothesis"].strip().rstrip(".!?") + connector + added.strip().rstrip(".!?") + "."
+        after = realize_added_clause(source["hypothesis"], connector, added)
+        if before != after and after in candidates:
+            changes.append({"candidate_index": candidates.index(after), "before": before, "after": after})
+    if changes:
+        attempt["candidate_realization"] = {"method": CLAUSE_REALIZER_VERSION, "changes": changes}
+
+
 def _continue_unused_judgments(client, source, operation, log):
     """Judge saved proposals only in slots that have never been dispatched."""
     if len(log["attempts"]) > 2:
@@ -447,6 +471,7 @@ def _continue_unused_judgments(client, source, operation, log):
             if not candidates:
                 continue
             attempt["candidates"] = candidates
+            _record_candidate_realizations(attempt, raw, source, operation, candidates)
             _record_generation_normalization(attempt, raw)
             attempt["unused_judgment_continuation"] = True
             judgments = judge_current(client, source, operation, candidates, attempt)
@@ -491,6 +516,7 @@ def generate_atomic(client, source, operation, seed=42, prior_trace=None):
             _record_generation_normalization(attempt, raw)
             candidates = parse_candidates(raw, source, operation)
             attempt["candidates"] = candidates
+            _record_candidate_realizations(attempt, raw, source, operation, candidates)
             if candidates:
                 judgments = judge_current(client, source, operation, candidates, attempt)
                 attempt["judgments"] = judgments

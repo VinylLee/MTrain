@@ -13,6 +13,15 @@ FIXED_WORDS = NUMBER_WORDS | legacy.STRICT_QUANTIFIERS | frozenset(
 CLAUSE_LINKS = frozenset("and but while although because when if yet".split())
 AGE_ALIASES = (frozenset(("child","kid")),frozenset(("children","kids")))
 FIRST_COMMON_WORDS = frozenset("children kids thanks immediately instantly quickly rapidly slowly gradually buy purchase start begin outside outdoors photograph photo".split())
+FIXED_SPANS = tuple(tuple(s.split()) for s in (
+    "about to", "used to", "at least", "at most", "at the very minimum",
+    "no longer", "as soon as", "in front of", "in spite of", "rather than"))
+
+
+def fixed_span_positions(words):
+    lowered = [word.lower() for word in words]
+    return {i + offset for span in FIXED_SPANS for i in range(len(words)-len(span)+1)
+            if tuple(lowered[i:i+len(span)]) == span for offset in range(len(span))}
 
 
 def same_age_category(left,right):
@@ -24,10 +33,12 @@ def realize_synonym_plan(text,plan):
     if not isinstance(plan,dict) or not isinstance(plan.get("edits"),list) or not 1 <= len(plan["edits"]) <= 2:
         return None
     words=list(WORD.finditer(text));replacements={}
+    protected = fixed_span_positions([word.group() for word in words])
     for edit in plan["edits"]:
         if not isinstance(edit,dict):return None
         index=edit.get("word_index");replacement=edit.get("replacement")
         if type(index) is not int or not 0 <= index < len(words) or index in replacements:return None
+        if index in protected:return None
         old=words[index].group()
         if edit.get("old_word")!=old or not isinstance(replacement,str):return None
         replacement=replacement.strip()
@@ -68,26 +79,125 @@ def has_agentive_passive(text):
     return agentive_passive_count(text)>0
 
 
-def voice_preserves_form(source,candidate):
-    def aspect(text):
-        text=text.lower().replace("’","'")
-        text=re.sub(r"\b(he|she|it|that|there)'s\b",r"\1 is",text)
-        text=re.sub(r"\b(i)'m\b",r"\1 am",text)
-        text=re.sub(r"\b(we|they|you)'re\b",r"\1 are",text)
-        words=[w.lower() for w in WORD.findall(text)];progressive=perfect=0
-        for i,w in enumerate(words):
-            if w in {"is","are","am","was","were","be"}:
-                after=[v for v in words[i+1:i+5] if v not in {'not','never'} and not v.endswith('ly')]
-                if after and (after[0]=='being' or after[0].endswith('ing')):progressive+=1
-            if w in {'has','have','had'}:
-                after=[v for v in words[i+1:i+4] if v not in {'not','never'}]
-                if after and (after[0] in {'been','bought','held','known','thrown','worn','ridden','eaten','given','taken','seen','made','done','said','found','read','shown','chosen','written','hit','put','cut','set','built','driven','taught','told','sold','sent','brought','caught'}
-                              or len(after[0])>3 and after[0].endswith(('ed','en'))):perfect+=1
-        return progressive,perfect
-    def names(text):
-        return {w.lower().split("'")[0] for w in WORD.findall(text) if w[0].isupper()
-                and w.lower() not in legacy.CONTENT_STOPWORDS|legacy.REFERENCE_TOKENS|legacy.STRICT_QUANTIFIERS}
-    return aspect(source)==aspect(candidate) and names(source)<=set(w.lower().split("'")[0] for w in WORD.findall(candidate))
+_IRREGULAR_VERBS = tuple(tuple(group.split()) for group in (
+    "wear wore worn", "ride rode ridden", "hold held held", "eat ate eaten",
+    "throw threw thrown", "see saw seen", "know knew known", "make made made",
+    "do did done", "give gave given", "take took taken", "say said said",
+    "buy bought bought", "find found found", "read read read", "show showed shown",
+    "choose chose chosen", "write wrote written", "hit hit hit", "put put put",
+    "cut cut cut", "set set set", "build built built", "drive drove driven",
+    "teach taught taught", "tell told told", "sell sold sold", "send sent sent",
+    "bring brought brought", "catch caught caught", "sing sang sung"))
+_PAST = {group[1] for group in _IRREGULAR_VERBS}
+_PARTICIPLES = {group[2] for group in _IRREGULAR_VERBS}
+_MODALS = frozenset("can could may might must shall should will would".split())
+_BE = frozenset("am is are was were be been being get gets got".split())
+_AUX = _BE | _MODALS | {"have", "has", "had", "do", "does", "did"}
+_ADVERBS = frozenset("not never always often sometimes usually already still just".split())
+_PREPOSITIONS = frozenset("by in on at near under over with without beside behind before after outside inside to from for through".split())
+_PRONOUN_CASE = {"me": "i", "him": "he", "her": "she", "us": "we", "them": "they"}
+
+
+def _verb_roots(word):
+    roots = {word}
+    for base, past, participle in _IRREGULAR_VERBS:
+        if word in {base, past, participle, base + "s", base + "ing"}:
+            roots.add(base)
+    if word.endswith("ies"): roots.add(word[:-3] + "y")
+    if word.endswith("s") and not word.endswith("ss"): roots.add(word[:-1])
+    if word.endswith("es"): roots.add(word[:-2])
+    for suffix in ("ed", "ing"):
+        if len(word) > len(suffix)+1 and word.endswith(suffix):
+            stem = word[:-len(suffix)]
+            roots.update((stem, stem + "e"))
+            if stem.endswith("i"): roots.add(stem[:-1] + "y")
+            if len(stem)>2 and stem[-1] == stem[-2]: roots.add(stem[:-1])
+    return roots
+
+
+def _voice_words(text):
+    # Unsupported clauses/contractions abstain instead of guessing a parse.
+    if re.search(r"[,;:?!\"“”]", text) or re.search(r"['’]", text):
+        return None
+    return [word.lower() for word in WORD.findall(text)]
+
+
+def _is_adverb(word):
+    return word in _ADVERBS or word.endswith("ly")
+
+
+def _aux_start(words, verb):
+    start = verb
+    while start and (words[start-1] in _AUX or _is_adverb(words[start-1])):
+        start -= 1
+    return start
+
+
+def _tense_aspect(words, start, verb, passive):
+    chain = words[start:verb]
+    modals = tuple(word for word in chain if word in _MODALS)
+    perfect = bool(set(chain) & {"have", "has", "had"})
+    progressive = "being" in chain if passive else words[verb].endswith("ing") and bool(set(chain) & _BE)
+    if modals:
+        tense = "modal"
+    elif chain:
+        finite = next((word for word in chain if word in _AUX), None)
+        if finite in {"was", "were", "had", "did", "got"}: tense = "past"
+        elif finite in {"am", "is", "are", "have", "has", "do", "does", "get", "gets"}: tense = "present"
+        else: return None
+    elif words[verb] in _PAST or words[verb].endswith("ed"):
+        # read/hit/put/cut/set have ambiguous present/past forms: abstain.
+        if words[verb] in {g[0] for g in _IRREGULAR_VERBS if g[0] == g[1]}: return None
+        tense = "past"
+    elif words[verb].endswith("ing"):
+        return None
+    else:
+        tense = "present"
+    return tense, modals, perfect, progressive
+
+
+def _role_prefix(short, long):
+    # The optional remainder is an unchanged PP adjunct, checked by inventory.
+    return bool(short) and long[:len(short)] == short and (
+        len(short) == len(long) or long[len(short)] in _PREPOSITIONS)
+
+
+def voice_preserves_form(source, candidate):
+    """Conservative simple transitive guard, not an English semantic prover.
+
+    Require a recoverable agent/patient swap and retain lexical material, tense,
+    modality and aspect. Unsupported/ambiguous parses return False. The same-model
+    grammar/equivalence judge is still required after this structural check.
+    """
+    source_words, candidate_words = _voice_words(source), _voice_words(candidate)
+    if not source_words or not candidate_words: return False
+    source_passive, candidate_passive = has_agentive_passive(source), has_agentive_passive(candidate)
+    if source_passive == candidate_passive: return False
+    active, passive = (candidate_words, source_words) if source_passive else (source_words, candidate_words)
+    frames = []
+    for pv, word in enumerate(passive):
+        if word not in _PARTICIPLES and not word.endswith("ed"): continue
+        ps = _aux_start(passive, pv)
+        if not ps or not (set(passive[ps:pv]) & _BE): continue
+        by = pv+1
+        while by < len(passive) and _is_adverb(passive[by]): by += 1
+        if by >= len(passive) or passive[by] != "by" or by+1 == len(passive): continue
+        for av, verb in enumerate(active):
+            if not (_verb_roots(verb) & _verb_roots(word)): continue
+            astart = _aux_start(active, av)
+            if not astart or av+1 == len(active): continue
+            norm = lambda values: [_PRONOUN_CASE.get(v, v) for v in values]
+            if not _role_prefix(norm(active[:astart]), norm(passive[by+1:])): continue
+            if not _role_prefix(norm(passive[:ps]), norm(active[av+1:])): continue
+            signature = _tense_aspect(active, astart, av, False)
+            if signature is None or signature != _tense_aspect(passive, ps, pv, True): continue
+            def inventory(words, start, verb_index, agent_by=None):
+                return Counter(norm([w for i, w in enumerate(words)
+                                     if i != verb_index and i != agent_by
+                                     and not (start <= i < verb_index and w in _AUX)]))
+            if inventory(active, astart, av) == inventory(passive, ps, pv, by):
+                frames.append((av, pv))
+    return len(frames) == 1 and valid_invariant_tokens(source, candidate)
 
 
 def _contains_span(words, span):

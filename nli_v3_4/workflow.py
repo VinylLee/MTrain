@@ -110,7 +110,7 @@ def _errors(value):
 def _code_hashes():
     root = Path(__file__).resolve().parents[1]
     return {p: sha256(root / p) for p in ("nli_v3_4/core.py", "nli_v3_4/data.py", "nli_v3_4/workflow.py", "nli_v3_4/protocol.py", "nli_v3_4/recovery.py", "nli_v3_4/invariants.py",
-                "nli_v3_4/processes.py", "nli_v3_4/calls.py", "nli_v3_4/schemas.py", "run_nli_v3_4.py", "run_nli_v3_4_development.py",
+                "nli_v3_4/processes.py", "nli_v3_4/calls.py", "nli_v3_4/schemas.py", "nli_v3_4/realization.py", "run_nli_v3_4.py", "run_nli_v3_4_development.py",
                 "augment_snli_all_label_mrs.py", "provenance_schema.py")}
 
 
