@@ -39,6 +39,34 @@ def development_rows(manifest_path, dataset, generated_path):
         yield r, original[r["pair_id"]]
 
 
+def addition_contexts(dataset, generated_path, journal_path, entries):
+    """Bind optional round-4 fact diagnostics to accepted raw traces, never select rows."""
+    from nli_v3_4.redesign import Round4Engine, ADDITIONS
+    metadata=json.loads(Path(generated_path).with_suffix(".run.json").read_text())
+    engine=Round4Engine()
+    if (metadata.get("stage")!="development" or metadata.get("engine")!="round4"
+            or metadata.get("contract_sha256")!=engine.fingerprint()):
+        raise ValueError("addition diagnostics require a bound round-4 development run")
+    journal=json.loads(Path(journal_path).read_text());contexts={}
+    by_key={digest({k:v for k,v in row.items() if k!="idx"}):(row,source) for row,source in entries}
+    for item in journal:
+        request=item.get("request",{});row=item.get("row")
+        if request.get("dataset")!=dataset or not row or request.get("operation") not in ADDITIONS:continue
+        key=digest({k:v for k,v in row.items() if k!="idx"})
+        if key not in by_key or key in contexts:raise ValueError("addition journal/output mismatch")
+        actual,source=by_key[key];trace=item["trace"]
+        if engine.replay_one(canonical_source(source),request["operation"],trace,request["seed"])!=actual["hypothesis"]:
+            raise ValueError("cannot replay addition trace")
+        selected=[p for a in trace["attempts"] if a.get("status")=="accepted"
+                  for p in a["proposals"] if p["hypothesis"]==actual["hypothesis"]]
+        if len(selected)!=1:raise ValueError("ambiguous added clause in trace")
+        contexts[key]=selected[0]["added_clause"]
+    for row,_ in entries:
+        if row["mr_id"] in ADDITIONS and digest({k:v for k,v in row.items() if k!="idx"}) not in contexts:
+            raise ValueError("missing addition trace; do not invent fact diagnostics")
+    return contexts
+
+
 def pick_device(requested):
     import torch
     if requested == "cpu" or not torch.cuda.is_available():
@@ -82,7 +110,7 @@ def score_tasks(model, tokenizer, tasks, device, batch_size):
     return scores
 
 
-def run(manifest_path, dataset, generated_path, output, cache, requested_device="auto", batch_size=8):
+def run(manifest_path, dataset, generated_path, output, cache, requested_device="auto", batch_size=8, addition_journal=None):
     import torch
     from transformers import AutoModelForSequenceClassification, AutoTokenizer
     torch.set_num_threads(2)
@@ -90,19 +118,31 @@ def run(manifest_path, dataset, generated_path, output, cache, requested_device=
     if output.exists():
         raise FileExistsError(output)
     before = sha256(generated_path)
+    journal_before=sha256(addition_journal) if addition_journal else None
     entries = list(development_rows(manifest_path, dataset, generated_path))
+    contexts=addition_contexts(dataset,generated_path,addition_journal,entries) if addition_journal else {}
     tasks = []
     rows = []
+    layouts=[]
     for index, (row, source) in enumerate(entries):
         record = {"row_number": index, "pair_id": row["pair_id"], "mr_id": row["mr_id"],
             "expected_label": ("entailment", "neutral", "contradiction")[row["label"]],
             "premise": row["premise"], "hypothesis": row["hypothesis"],
             "source_hypothesis": source["hypothesis"], "scores": {}}
         tasks.append((index, row["premise"], row["hypothesis"]))
+        layout=["pair"]
         if row["mr_type"] == "inv":
             tasks.extend([(index, source["hypothesis"], row["hypothesis"]),
                           (index, row["hypothesis"], source["hypothesis"])])
+            layout.extend(("inv_forward","inv_reverse"))
+        key=digest({k:v for k,v in row.items() if k!="idx"})
+        if key in contexts:
+            added=contexts[key];record.update(added_clause=added,source_gold_label=("entailment","neutral","contradiction")[source["label"]])
+            tasks.extend([(index,row["premise"],source["hypothesis"]),
+                          (index,row["premise"],added),(index,source["hypothesis"],added)])
+            layout.extend(("source_pair","premise_to_added","source_to_added"))
         rows.append(record)
+        layouts.append(layout)
     device = pick_device(requested_device)
     models_meta = {}
     for name, (model_id, revision) in MODELS.items():
@@ -113,8 +153,8 @@ def run(manifest_path, dataset, generated_path, output, cache, requested_device=
         results = score_tasks(model, tokenizer, tasks, device, batch_size)
         cursor = 0
         for index, (row, _) in enumerate(entries):
-            n = 3 if row["mr_type"] == "inv" else 1
-            rows[index]["scores"][name] = dict(zip(("pair", "inv_forward", "inv_reverse"), results[cursor:cursor+n]))
+            n = len(layouts[index])
+            rows[index]["scores"][name] = dict(zip(layouts[index], results[cursor:cursor+n]))
             cursor += n
         models_meta[name] = {"model_id": model_id, "revision": revision, "device": device,
                             "id2label": model.config.id2label,
@@ -131,7 +171,9 @@ def run(manifest_path, dataset, generated_path, output, cache, requested_device=
                 if score["status"] != "scored":
                     flags.append(f"{name}:{test}:too_long")
                     continue
-                expected = row["expected_label"] if test == "pair" else "entailment"
+                expected = (row["expected_label"] if test in {"pair","premise_to_added"} else
+                            row["source_gold_label"] if test=="source_pair" else
+                            "neutral" if test=="source_to_added" else "entailment")
                 if score["probabilities"][expected] < 0.8:
                     flags.append(f"{name}:{test}:low_target_probability")
                 if test == "pair":
@@ -141,12 +183,16 @@ def run(manifest_path, dataset, generated_path, output, cache, requested_device=
         row["design_diagnostic_flags"] = flags
     if sha256(generated_path) != before:
         raise RuntimeError("input changed during design diagnostic")
+    if addition_journal and sha256(addition_journal)!=journal_before:
+        raise RuntimeError("addition journal changed during design diagnostic")
     write_jsonl(output / "design_scores.jsonl", rows)
     write_json(output / "report.json", {"stage": "development_diagnostic_only", "dataset": dataset,
         "input": str(Path(generated_path).resolve()), "input_sha256": before,
         "generation_metadata_sha256": sha256(Path(generated_path).with_suffix(".run.json")),
         "manifest_sha256": sha256(manifest_path), "models": models_meta, "rows": len(rows),
         "flagged_rows": sum(bool(r["design_diagnostic_flags"]) for r in rows),
+        "addition_journal_sha256":journal_before,
+        "model_input_pairs":len(tasks)*len(MODELS),
         "input_unchanged": True, "used_to_filter_data": False, "production_dependency": False})
 
 
@@ -159,8 +205,9 @@ def main():
     p.add_argument("--cache", type=Path, default=Path.home()/".cache/huggingface/hub")
     p.add_argument("--device", choices=("auto", "cpu"), default="auto")
     p.add_argument("--batch-size", type=int, default=8)
+    p.add_argument("--addition-journal",type=Path,help="Optional round-4 entries.json; diagnose P/A and H/A without filtering")
     a = p.parse_args()
-    run(a.manifest, a.dataset, a.generated, a.output, a.cache, a.device, a.batch_size)
+    run(a.manifest, a.dataset, a.generated, a.output, a.cache, a.device, a.batch_size,a.addition_journal)
 
 
 if __name__ == "__main__":
