@@ -39,12 +39,26 @@ def development_rows(manifest_path, dataset, generated_path):
         yield r, original[r["pair_id"]]
 
 
-def addition_contexts(dataset, generated_path, journal_path, entries):
+def addition_contexts(dataset, generated_path, journal_path, entries, protocol_python=None, manifest_path=None):
     """Bind optional round-4 fact diagnostics to accepted raw traces, never select rows."""
+    if protocol_python is not None:
+        # The fixed Torch environment need not install the generation API SDK.
+        # Revalidate raw journals in the explicitly chosen protocol interpreter;
+        # this child mode imports no Torch and never constructs an API client.
+        result=subprocess.check_output([str(protocol_python),str(Path(__file__).resolve()),
+            "--manifest",str(manifest_path),"--dataset",dataset,"--generated",str(generated_path),
+            "--addition-journal",str(journal_path),"--journal-contexts-only"],text=True)
+        value=json.loads(result)
+        if value["generated_sha256"]!=sha256(generated_path) or value["journal_sha256"]!=sha256(journal_path):
+            raise ValueError("protocol child inspected different inputs")
+        return value["contexts"]
     from nli_v3_4.redesign import Round4Engine, ADDITIONS
     metadata=json.loads(Path(generated_path).with_suffix(".run.json").read_text())
     engine=Round4Engine()
-    if (metadata.get("stage")!="development" or metadata.get("engine")!="round4"
+    if metadata.get("engine")=="refinement":
+        from nli_v3_4.refinement import RefinementEngine
+        engine=RefinementEngine()
+    if (metadata.get("stage")!="development" or metadata.get("engine") not in {"round4","refinement"}
             or metadata.get("contract_sha256")!=engine.fingerprint()):
         raise ValueError("addition diagnostics require a bound round-4 development run")
     journal=json.loads(Path(journal_path).read_text());contexts={}
@@ -110,7 +124,7 @@ def score_tasks(model, tokenizer, tasks, device, batch_size):
     return scores
 
 
-def run(manifest_path, dataset, generated_path, output, cache, requested_device="auto", batch_size=8, addition_journal=None):
+def run(manifest_path, dataset, generated_path, output, cache, requested_device="auto", batch_size=8, addition_journal=None, protocol_python=None):
     import torch
     from transformers import AutoModelForSequenceClassification, AutoTokenizer
     torch.set_num_threads(2)
@@ -120,7 +134,7 @@ def run(manifest_path, dataset, generated_path, output, cache, requested_device=
     before = sha256(generated_path)
     journal_before=sha256(addition_journal) if addition_journal else None
     entries = list(development_rows(manifest_path, dataset, generated_path))
-    contexts=addition_contexts(dataset,generated_path,addition_journal,entries) if addition_journal else {}
+    contexts=addition_contexts(dataset,generated_path,addition_journal,entries,protocol_python,manifest_path) if addition_journal else {}
     tasks = []
     rows = []
     layouts=[]
@@ -192,6 +206,7 @@ def run(manifest_path, dataset, generated_path, output, cache, requested_device=
         "manifest_sha256": sha256(manifest_path), "models": models_meta, "rows": len(rows),
         "flagged_rows": sum(bool(r["design_diagnostic_flags"]) for r in rows),
         "addition_journal_sha256":journal_before,
+        "protocol_verification_interpreter":str(protocol_python) if protocol_python else None,
         "model_input_pairs":len(tasks)*len(MODELS),
         "input_unchanged": True, "used_to_filter_data": False, "production_dependency": False})
 
@@ -201,13 +216,22 @@ def main():
     p.add_argument("--manifest", type=Path, required=True)
     p.add_argument("--dataset", required=True)
     p.add_argument("--generated", type=Path, required=True)
-    p.add_argument("--output", type=Path, required=True)
+    p.add_argument("--output", type=Path)
     p.add_argument("--cache", type=Path, default=Path.home()/".cache/huggingface/hub")
     p.add_argument("--device", choices=("auto", "cpu"), default="auto")
     p.add_argument("--batch-size", type=int, default=8)
     p.add_argument("--addition-journal",type=Path,help="Optional round-4 entries.json; diagnose P/A and H/A without filtering")
+    p.add_argument("--protocol-python",type=Path,help="Optional interpreter with generation protocol dependencies for read-only journal replay")
+    p.add_argument("--journal-contexts-only",action="store_true",help="Verify journal and print contexts, without Torch or inference")
     a = p.parse_args()
-    run(a.manifest, a.dataset, a.generated, a.output, a.cache, a.device, a.batch_size,a.addition_journal)
+    if a.journal_contexts_only:
+        if not a.addition_journal:p.error("journal context inspection requires --addition-journal")
+        entries=list(development_rows(a.manifest,a.dataset,a.generated))
+        contexts=addition_contexts(a.dataset,a.generated,a.addition_journal,entries)
+        print(json.dumps({"contexts":contexts,"generated_sha256":sha256(a.generated),"journal_sha256":sha256(a.addition_journal)}))
+    else:
+        if not a.output:p.error("inference requires --output")
+        run(a.manifest, a.dataset, a.generated, a.output, a.cache, a.device, a.batch_size,a.addition_journal,a.protocol_python)
 
 
 if __name__ == "__main__":
