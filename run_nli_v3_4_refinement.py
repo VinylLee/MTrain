@@ -15,11 +15,27 @@ from nli_v3_4.refinement import RefinementEngine, REVISION, call_cap, token_cap
 
 ENGINE = RefinementEngine()
 KIND = "post_review_typed_detail_single_pair_development_pilot_v1"
+ENGINE_NAME = "refinement"
 
 
 def code_hashes():
     return {**previous.code_hashes(), "nli_v3_4/redesign.py": sha256("nli_v3_4/redesign.py"),
-            "nli_v3_4/refinement.py": sha256("nli_v3_4/refinement.py"), Path(__file__).name: sha256(__file__)}
+            "nli_v3_4/refinement.py": sha256("nli_v3_4/refinement.py"),
+            "nli_v3_4/refinement_v2.py": sha256("nli_v3_4/refinement_v2.py"), Path(__file__).name: sha256(__file__)}
+
+
+def configure(protocol):
+    global ENGINE, KIND, REVISION, ENGINE_NAME
+    if protocol == "v2":
+        from nli_v3_4.refinement_v2 import DirectTypedEngine
+        ENGINE=DirectTypedEngine(); REVISION=ENGINE.revision
+        KIND="post_review_direct_typed_values_explicit_sentence_development_pilot_v2"
+        ENGINE_NAME="refinement_v2"
+    else:
+        from nli_v3_4.refinement import REVISION as first_revision
+        ENGINE=RefinementEngine(); REVISION=first_revision
+        KIND="post_review_typed_detail_single_pair_development_pilot_v1"
+        ENGINE_NAME="refinement"
 
 
 def prepare(manifest_path, review_keys, output):
@@ -39,7 +55,7 @@ def prepare(manifest_path, review_keys, output):
             requests.append({"request_id": digest([REVISION, origin, source_uid(s), op, 42]),
                 "dataset": origin, "pair_id": s["pair_id"], "source_uid": source_uid(s),
                 "operation": op, "seed": 42, "max_calls": call_cap(op)})
-    plan = {"kind": KIND, "stage": "development", "engine": "refinement", "revision": REVISION,
+    plan = {"kind": KIND, "stage": "development", "engine": ENGINE_NAME, "revision": REVISION,
         "scope": "post_review_development_not_part_of_original_three_round_experiment",
         "manifest": str(Path(manifest_path).resolve()), "manifest_sha256": sha256(manifest_path),
         "previous_review_keys": {str(Path(k).resolve()): sha256(k) for k in review_keys},
@@ -55,7 +71,7 @@ def validate(path):
     plan = json.loads(Path(path).read_text()); claimed = plan.pop("plan_fingerprint")
     if digest(plan) != claimed: raise ValueError("refinement plan changed")
     plan["plan_fingerprint"] = claimed
-    if (plan["kind"] != KIND or plan["stage"] != "development" or plan["engine"] != "refinement"
+    if (plan["kind"] != KIND or plan["stage"] != "development" or plan["engine"] != ENGINE_NAME
             or plan["revision"] != REVISION or plan["contract"] != ENGINE.contract()
             or plan["contract_sha256"] != ENGINE.fingerprint() or plan["code_hashes"] != code_hashes()
             or plan["max_requests"] != 25 or plan["max_model_calls"] != 295 or plan["max_output_tokens"] != 144640
@@ -91,7 +107,7 @@ def run(path, resume=False, base_url="http://127.0.0.1:1234/v1"):
     out.mkdir(parents=True, exist_ok=True)
     with (out/"run.lock").open("a") as lock:
         fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        config = {"kind": KIND, "stage": "development", "engine": "refinement",
+        config = {"kind": KIND, "stage": "development", "engine": ENGINE_NAME,
             "plan_sha256": sha256(path), "contract_sha256": ENGINE.fingerprint(), "code_hashes": code_hashes(),
             "base_url": base_url, "manifest_sha256": plan["manifest_sha256"], "max_requests": 25,
             "max_model_calls": 295, "max_output_tokens": 144640, "production_allowed": False}
@@ -202,13 +218,16 @@ def audit(path):
 
 
 def main():
-    p = argparse.ArgumentParser(description=__doc__); sub = p.add_subparsers(dest="command", required=True)
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--protocol",choices=("v1","v2"),default="v1")
+    sub = p.add_subparsers(dest="command", required=True)
     q = sub.add_parser("prepare"); q.add_argument("--manifest", type=Path, required=True)
     q.add_argument("--previous-review-key", type=Path, action="append", required=True); q.add_argument("--output", type=Path, required=True)
     for cmd in ("validate", "run", "audit"):
         q = sub.add_parser(cmd); q.add_argument("--plan", type=Path, required=True)
         if cmd == "run": q.add_argument("--resume", action="store_true")
     a = p.parse_args()
+    configure(a.protocol)
     if a.command == "prepare": prepare(a.manifest, a.previous_review_key, a.output); print('{"prepared":true,"api_calls":0}')
     elif a.command == "validate": validate(a.plan); print('{"valid":true,"api_calls":0}')
     elif a.command == "audit": print(json.dumps(audit(a.plan), ensure_ascii=False))

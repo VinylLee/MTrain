@@ -225,6 +225,16 @@ class SavedResponses:
 
 
 class RefinementEngine(parent.Round4Engine):
+    revision = REVISION
+    generation_system = GEN_SYSTEM
+    generation_prompt = staticmethod(generation_prompt)
+    generation_schema = staticmethod(generation_schema)
+    parse_proposals = staticmethod(proposals)
+    edit_request = staticmethod(edit_request)
+
+    def normalize_edit(self, value, checks):
+        return value
+
     @staticmethod
     def contract():
         return {"revision": REVISION, "status": "post_review_development_not_frozen",
@@ -285,9 +295,10 @@ class RefinementEngine(parent.Round4Engine):
                 "premise_to_added": self._nli(client, source["premise"], p["added_clause"], trace, "P_to_added"),
                 "source_to_added": self._nli(client, source["hypothesis"], p["added_clause"], trace, "H_to_added")}
         trace["independent_relations"] = directions
-        prompt, schema, checks = edit_request(source, operation, p, trajectory)
+        prompt, schema, checks = self.edit_request(source, operation, p, trajectory)
         raw = self._call(client, EDIT_SYSTEM, prompt, schema, EDIT_TOKENS, 0.0, trace, "edit_checks")
         value = core.legacy.extract_json(raw); trace["edit_checks"] = value
+        value = self.normalize_edit(value, checks)
         if (not isinstance(value, dict) or set(value) != set(checks) | {"reason"}
                 or not isinstance(value.get("reason"), str)
                 or any(type(value.get(k)) is not bool for k in checks)):
@@ -306,12 +317,12 @@ class RefinementEngine(parent.Round4Engine):
     def _attempt(self, client, source, operation, round_index, seed):
         trace = {"round": round_index}
         try:
-            system = GEN_SYSTEM if operation in parent.ADDITIONS else core.INVARIANT_SYSTEM
-            raw = self._call(client, system, generation_prompt(source, operation, round_index, seed),
-                generation_schema(source, operation, round_index, seed), GEN_TOKENS, 0.7, trace, "generation")
+            system = self.generation_system if operation in parent.ADDITIONS else core.INVARIANT_SYSTEM
+            raw = self._call(client, system, self.generation_prompt(source, operation, round_index, seed),
+                self.generation_schema(source, operation, round_index, seed), GEN_TOKENS, 0.7, trace, "generation")
             trace["raw_generation"] = raw
             core._record_generation_normalization(trace, raw)
-            ps = proposals(raw, source, operation, round_index, seed)
+            ps = self.parse_proposals(raw, source, operation, round_index, seed)
             trace.update(proposals=ps, candidates=[p["hypothesis"] for p in ps])
             if ps:
                 judgments = self._judge(client, source, operation, ps, trace)
@@ -325,7 +336,7 @@ class RefinementEngine(parent.Round4Engine):
         return None, trace
 
     def generate_atomic(self, client, source, operation, seed=42):
-        log = {"revision": REVISION, "contract_sha256": self.fingerprint(), "operation": operation,
+        log = {"revision": self.revision, "contract_sha256": self.fingerprint(), "operation": operation,
                "source_uid": source_uid(source), "attempts": []}
         for i in range(2):
             text, trace = self._attempt(client, source, operation, i, seed)
@@ -343,7 +354,7 @@ class RefinementEngine(parent.Round4Engine):
         plans = self.available_plans(source, operation)
         steps = plans[int(digest([source_uid(source), operation, seed])[:8], 16) % len(plans)]
         working = dict(source); trajectory = []
-        log = {"revision": REVISION, "contract_sha256": self.fingerprint(), "operation": operation,
+        log = {"revision": self.revision, "contract_sha256": self.fingerprint(), "operation": operation,
             "source_uid": source_uid(source), "applied_steps": list(steps), "stage_logs": []}
         for stage in steps:
             if not self.eligible(working, stage): log["status"] = "ineligible_stage"; return None, log
@@ -367,7 +378,7 @@ class RefinementEngine(parent.Round4Engine):
 
     def replay_one(self, source, operation, trace, seed=42):
         if (trace.get("contract_sha256") != self.fingerprint() or trace.get("source_uid") != source_uid(source)
-                or trace.get("operation") != operation or trace.get("revision") != REVISION):
+                or trace.get("operation") != operation or trace.get("revision") != self.revision):
             raise ValueError("refinement trace identity changed")
         if trace.get("status") != "accepted": return None
         if operation in core.COMPOSITE_STAGE_PLANS:
