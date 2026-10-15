@@ -61,7 +61,10 @@ def addition_contexts(dataset, generated_path, journal_path, entries, protocol_p
     elif metadata.get("engine")=="refinement_v2":
         from nli_v3_4.refinement_v2 import DirectTypedEngine
         engine=DirectTypedEngine()
-    if (metadata.get("stage")!="development" or metadata.get("engine") not in {"round4","refinement","refinement_v2"}
+    elif metadata.get("engine")=="refinement_v2_article":
+        from nli_v3_4.article_guard import ArticleCheckedEngine
+        engine=ArticleCheckedEngine()
+    if (metadata.get("stage")!="development" or metadata.get("engine") not in {"round4","refinement","refinement_v2","refinement_v2_article"}
             or metadata.get("contract_sha256")!=engine.fingerprint()):
         raise ValueError("addition diagnostics require a bound round-4 development run")
     journal=json.loads(Path(journal_path).read_text());contexts={}
