@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 import run_nli_quality_repair_pilot as pilot
-from analysis.nli_v3_4_review import HISTORICAL_DEVELOPMENT, package
+from analysis.nli_v3_4_review import HISTORICAL_DEVELOPMENT, package, assess
 from nli_v3_4 import core
 from nli_v3_4.data import digest, export_source, read_jsonl, write_json, write_jsonl
 
@@ -122,3 +122,37 @@ def test_micro_pilot_review_keeps_preliminary_historical_scope(tmp_path):
     assert manifest["pairs"] == 5
     with pytest.raises(ValueError):
         package(old, new, tmp_path / "wrong_scope", stage="development")
+
+
+def test_unpaired_invariant_quality_is_reported_without_fabricated_comparison(tmp_path):
+    """All data/answers here are synthetic fixtures, never human experiment input."""
+    source = {"premise":"The children buy books.","hypothesis":"The children buy books.","label":0,"pair_id":7}
+    old, new = tmp_path/"old", tmp_path/"new"
+    for origin in pilot.ORIGINS:
+        original = export_source(source,"train" if origin=="train" else "test")
+        followup = {**original,"mr_id":"synonym_replacement","hypothesis":"The children purchase books."}
+        followup["is_syn" if origin=="train" else "is_source"] = origin=="train"
+        write_jsonl(old/f"{origin}.jsonl",[original])
+        write_jsonl(new/f"{origin}.jsonl",[original,followup])
+        write_json(new/f"{origin}.run.json",{"stage":"development","kind":pilot.KIND,
+            "source_sha256":digest([source]),"contract_sha256":core.fingerprint()})
+    review=tmp_path/"review"
+    package(old,new,review,stage=HISTORICAL_DEVELOPMENT)
+    answers=json.loads((review/"answers.template.json").read_text())
+    answers.update(reviewer="synthetic test fixture",human_attestation=True)
+    for a in answers["answers"]:
+        a.update(label=0,grammatical=True,operation_valid=True,source_equivalent=True)
+    write_json(tmp_path/"answers.json",answers)
+    assess(review,tmp_path/"answers.json",tmp_path/"assessment.json")
+    result=json.loads((tmp_path/"assessment.json").read_text())
+    assert set(result["criteria"])=={"label","grammar","operation","inv_equivalence"}
+    criterion=result["criteria"]["inv_equivalence"]
+    assert criterion["v3_4"]==1 and criterion["v3_4_n"]==5
+    assert criterion["v3_3"] is None and criterion["v3_3_n"]==0
+    assert criterion["difference_ci95"] is None
+    assert criterion["comparison_status"]=="no_paired_reference"
+    assert criterion["passes"] is False and result["quality_passed"] is False
+    with (review/"operation_blind.jsonl").open("a") as stream:
+        stream.write('\n')
+    with pytest.raises(ValueError,match="blind review data changed"):
+        assess(review,tmp_path/"answers.json",tmp_path/"changed.json")

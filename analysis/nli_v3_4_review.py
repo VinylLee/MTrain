@@ -121,6 +121,10 @@ def assess(review_root, answers_path, output):
     manifest = json.loads((root/"manifest.json").read_text())
     if manifest["private_key_sha256"] != sha256(root/"private_key.jsonl"):
         raise ValueError("private review key changed")
+    for filename, field in (("label_grammar_blind.jsonl", "label_grammar_sha256"),
+                            ("operation_blind.jsonl", "operation_sha256")):
+        if manifest[field] != sha256(root/filename):
+            raise ValueError("blind review data changed")
     for dataset in manifest["datasets"].values():
         for version in ("v3_3", "v3_4"):
             if sha256(dataset[f"{version}_path"]) != dataset[f"{version}_sha256"]:
@@ -153,21 +157,34 @@ def assess(review_root, answers_path, output):
                 values[criterion][group].setdefault(key["version"], []).append(int(result))
             per_version[criterion][key["version"]].append(int(result))
     summary = {}
-    for criterion, groups in values.items():
+    for criterion, versions_all in per_version.items():
+        groups = values.get(criterion, {})
+        old_values, new_values = versions_all.get("v3.3", []), versions_all.get("v3.4", [])
+        old = float(np.mean(old_values)) if old_values else None
+        new = float(np.mean(new_values)) if new_values else None
+        sizes = {"v3_3_n":len(old_values),"v3_4_n":len(new_values),"paired_source_groups":len(groups)}
+        if not groups:
+            summary[criterion]={"v3_3":old,"v3_4":new,"difference_ci95":None,
+                "paired_v3_3":None,"paired_v3_4":None,"passes":False,**sizes,
+                "comparison_status":"no_paired_reference"}
+            continue
         counts=[]
         for versions in groups.values():
+            if not versions.get("v3.3") or not versions.get("v3.4"):
+                raise ValueError("paired review group lacks both versions")
             old,new=versions["v3.3"],versions["v3.4"]
             counts.append([sum(old),len(old),sum(new),len(new)])
         counts=np.asarray(counts);rng=np.random.default_rng(42);diffs=[]
         for _ in range(1500):
             c=counts[rng.integers(0,len(counts),len(counts))].sum(axis=0)
             diffs.append(c[2]/c[3]-c[0]/c[1])
-        old=float(np.mean(per_version[criterion]["v3.3"]));new=float(np.mean(per_version[criterion]["v3.4"]))
+        old=float(np.mean(old_values));new=float(np.mean(new_values))
         paired_old=sum(c[0] for c in counts)/sum(c[1] for c in counts)
         paired_new=sum(c[2] for c in counts)/sum(c[3] for c in counts)
         ci=np.quantile(diffs,[.025,.975]).tolist()
         summary[criterion]={"v3_3":old,"v3_4":new,"difference_ci95":ci,
             "paired_v3_3":float(paired_old),"paired_v3_4":float(paired_new),
+            **sizes,"comparison_status":"paired_reference_present",
             "passes":new>=.95 and new>=old and paired_new>=paired_old and ci[0]>=-.02}
     result={**manifest,"human_review_complete":True,"reviewer":supplied["reviewer"],
             "answers_sha256":sha256(answers_path),"criteria":summary,

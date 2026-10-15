@@ -80,6 +80,10 @@ prepare／validate不调用模型；run需单独确认新增预算。该诊断�
 支持显式`preliminary_development_historical_reference`范围，不给历史参考伪造
 生成元数据；该范围不能用于冻结。具体清单与执行命令见本地
 `local_runs/nli_v3_4_20261015_quality_repair/quality_pilot_proposal_v2/PLAN_zh.md`。
+该小试随后获用户批准并完成：50请求、123次Gemma调用、17条候选、33次失败／弃权。
+外部模型诊断仅38个输入对，未用于挑选；新人工盲审共29条，尚待填写。INV仅1条
+且无历史配对；无配对的质量指标仍报告新版分数和样本数，比较缺失时标记证据不足，
+不能漏报或判通过。详见该目录下`execution/REPORT_zh.md`，不代表正式目标完成。
 
 `analysis/design_nli_quality.py` **只允许开发来源和 development 生成记录**。
 DeBERTa 与 RoBERTa MNLI 的用途是定位提示词错误并帮助修改通用规则。
