@@ -30,6 +30,7 @@ mr_test_data_merged/
 /mr_test_data_v3_3_full/
 /mr_test_data_v3_3_smoke/
 /mr_test_data_v3_3_smoke_gpu/
+/mr_test_data_merged_v1.1/
 /mr_test_data_merged_legacy_*/
 /mr_test_checkpoint_backups/
 /mr_test_runs_v3_3_full/

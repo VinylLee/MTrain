@@ -1,0 +1,874 @@
+{
+  "script_sha256": "649d7439cc825c654035bbcb3e7a739fdb48f092f13b9317e316085aea6b6fd7",
+  "frozen_inputs": {
+    "train": {
+      "path": "nli_arg_data/snli_lr0.0037_gemma-3-4b-it-qat/augmented_data_all_label_mrs_v3_3_full.json",
+      "sha256": "648946c122110d808818df5cef9166602c9166b660c9c8a7719ecde4c010ab1a",
+      "bytes": 1370347
+    },
+    "snli": {
+      "path": "mr_test_data_merged_v1.1/snli.jsonl",
+      "sha256": "21c1236c6b196be3382af3f4f04136d350ff73e03c9970db4f2f66f5763115fc",
+      "bytes": 71992606
+    },
+    "mnlim": {
+      "path": "mr_test_data_merged_v1.1/mnlim.jsonl",
+      "sha256": "4d172e49a05a27dadc37e5cea25b9f16467db0267b1c22270528d5a4cec15de1",
+      "bytes": 62559857
+    },
+    "mnlimm": {
+      "path": "mr_test_data_merged_v1.1/mnlimm.jsonl",
+      "sha256": "1cc44cc9f27655a00a531e79e4b3a8a8678c09665c691b9a9d3a1ae5c743ddb1",
+      "bytes": 62864446
+    },
+    "sick": {
+      "path": "mr_test_data_merged_v1.1/sick.jsonl",
+      "sha256": "6d6ce729d669699434759d9b1fe0c4286dca3f4c643c87052e3ac0e891009ffd",
+      "bytes": 33460357
+    }
+  },
+  "surface_feature_names": [
+    "only_if",
+    "comma_and",
+    "comma_but",
+    "any_but",
+    "explicit_negation",
+    "starts_negative",
+    "any_if",
+    "modal_uncertainty",
+    "hypothesis_word_count",
+    "hypothesis_character_count",
+    "hypothesis_comma_count"
+  ],
+  "surface_bootstrap": {
+    "snli": {
+      "unit": "source pair_id within dataset",
+      "replicates": 1500,
+      "statistic": "mean of three seed accuracies, micro-weighted followups",
+      "groups": 3446,
+      "ci95": [
+        0.9785677963618291,
+        0.9830635491606715
+      ]
+    },
+    "mnlim": {
+      "unit": "source pair_id within dataset",
+      "replicates": 1500,
+      "statistic": "mean of three seed accuracies, micro-weighted followups",
+      "groups": 3620,
+      "ci95": [
+        0.9353246409039765,
+        0.9445938278667974
+      ]
+    },
+    "mnlimm": {
+      "unit": "source pair_id within dataset",
+      "replicates": 1500,
+      "statistic": "mean of three seed accuracies, micro-weighted followups",
+      "groups": 3632,
+      "ci95": [
+        0.9299851729997277,
+        0.9395476326062338
+      ]
+    },
+    "sick": {
+      "unit": "source pair_id within dataset",
+      "replicates": 1500,
+      "statistic": "mean of three seed accuracies, micro-weighted followups",
+      "groups": 1768,
+      "ci95": [
+        0.9341806692808915,
+        0.9472212256186471
+      ]
+    }
+  },
+  "surface_seed42_coefficients": {
+    "entailment": {
+      "intercept": -0.9308401373976897,
+      "standardized_feature_weights": {
+        "only_if": -0.39349664017973074,
+        "comma_and": -0.39991156635520864,
+        "comma_but": -0.05517269384268827,
+        "any_but": -0.06481021962612152,
+        "explicit_negation": -0.6935609780534918,
+        "starts_negative": -0.33497663482387546,
+        "any_if": -0.396786174571293,
+        "modal_uncertainty": -0.05686403749817507,
+        "hypothesis_word_count": -0.4716371080113875,
+        "hypothesis_character_count": -0.1271623010094902,
+        "hypothesis_comma_count": -0.04742490381395352
+      }
+    },
+    "neutral": {
+      "intercept": 1.224521939144478,
+      "standardized_feature_weights": {
+        "only_if": 1.5372797491264258,
+        "comma_and": 1.8150542236951175,
+        "comma_but": -0.299182251564703,
+        "any_but": -0.270270085275053,
+        "explicit_negation": -0.4903338911744186,
+        "starts_negative": -0.31456563407935445,
+        "any_if": -0.04981694372740017,
+        "modal_uncertainty": 0.16526630299749498,
+        "hypothesis_word_count": 0.03826532433863094,
+        "hypothesis_character_count": 0.45055659261211123,
+        "hypothesis_comma_count": 0.001183344360931901
+      }
+    },
+    "contradiction": {
+      "intercept": -0.2936818017468006,
+      "standardized_feature_weights": {
+        "only_if": -1.1437831089466963,
+        "comma_and": -1.4151426573399073,
+        "comma_but": 0.3543549454073902,
+        "any_but": 0.33508030490117047,
+        "explicit_negation": 1.1838948692279128,
+        "starts_negative": 0.6495422689032277,
+        "any_if": 0.446603118298695,
+        "modal_uncertainty": -0.10840226549931817,
+        "hypothesis_word_count": 0.43337178367274753,
+        "hypothesis_character_count": -0.3233942916026271,
+        "hypothesis_comma_count": 0.04624155945302258
+      }
+    }
+  },
+  "word_seed42_top_features": {
+    "raw_word": {
+      "entailment": [
+        {
+          "feature": "and white",
+          "weight": 1.8224068824725177,
+          "training_row_label_counts": {
+            "entailment": 6,
+            "contradiction": 7,
+            "neutral": 10
+          }
+        },
+        {
+          "feature": "clothes",
+          "weight": 1.5548308546838794,
+          "training_row_label_counts": {
+            "neutral": 22,
+            "entailment": 11,
+            "contradiction": 9
+          }
+        },
+        {
+          "feature": "not standing",
+          "weight": 1.537754231680129,
+          "training_row_label_counts": {
+            "contradiction": 7,
+            "entailment": 2,
+            "neutral": 3
+          }
+        },
+        {
+          "feature": "man and",
+          "weight": 1.5036466062310823,
+          "training_row_label_counts": {
+            "contradiction": 6,
+            "neutral": 17,
+            "entailment": 6
+          }
+        },
+        {
+          "feature": "watching concert",
+          "weight": 1.404083736600527,
+          "training_row_label_counts": {
+            "entailment": 2,
+            "contradiction": 1,
+            "neutral": 3
+          }
+        },
+        {
+          "feature": "his owner",
+          "weight": 1.1973109979424996,
+          "training_row_label_counts": {
+            "entailment": 1,
+            "neutral": 3
+          }
+        },
+        {
+          "feature": "in water",
+          "weight": 1.1913084189058956,
+          "training_row_label_counts": {
+            "entailment": 4,
+            "contradiction": 4,
+            "neutral": 7
+          }
+        },
+        {
+          "feature": "blue cap",
+          "weight": 1.1860965250680529,
+          "training_row_label_counts": {
+            "entailment": 2,
+            "contradiction": 2,
+            "neutral": 2
+          }
+        },
+        {
+          "feature": "black and",
+          "weight": 1.1620279800574465,
+          "training_row_label_counts": {
+            "entailment": 5,
+            "contradiction": 9,
+            "neutral": 10
+          }
+        },
+        {
+          "feature": "near the",
+          "weight": 1.1486584396543367,
+          "training_row_label_counts": {
+            "neutral": 17,
+            "entailment": 8,
+            "contradiction": 6
+          }
+        },
+        {
+          "feature": "is being",
+          "weight": 1.1094106258600644,
+          "training_row_label_counts": {
+            "entailment": 23,
+            "neutral": 19,
+            "contradiction": 6
+          }
+        },
+        {
+          "feature": "the grass",
+          "weight": 1.1034230800663885,
+          "training_row_label_counts": {
+            "entailment": 7,
+            "contradiction": 8,
+            "neutral": 18
+          }
+        }
+      ],
+      "neutral": [
+        {
+          "feature": "and",
+          "weight": 7.49560486730909,
+          "training_row_label_counts": {
+            "neutral": 1159,
+            "entailment": 46,
+            "contradiction": 63
+          }
+        },
+        {
+          "feature": "and he",
+          "weight": 4.865820578846276,
+          "training_row_label_counts": {
+            "neutral": 374,
+            "entailment": 1,
+            "contradiction": 1
+          }
+        },
+        {
+          "feature": "only if",
+          "weight": 3.968207760712712,
+          "training_row_label_counts": {
+            "neutral": 445
+          }
+        },
+        {
+          "feature": "and the",
+          "weight": 3.9666030524975167,
+          "training_row_label_counts": {
+            "neutral": 155,
+            "contradiction": 1
+          }
+        },
+        {
+          "feature": "if",
+          "weight": 3.6772587288425185,
+          "training_row_label_counts": {
+            "neutral": 445,
+            "contradiction": 1
+          }
+        },
+        {
+          "feature": "and they",
+          "weight": 3.3582551204539746,
+          "training_row_label_counts": {
+            "neutral": 123,
+            "entailment": 2
+          }
+        },
+        {
+          "feature": "and she",
+          "weight": 3.328725905931414,
+          "training_row_label_counts": {
+            "neutral": 151,
+            "entailment": 2
+          }
+        },
+        {
+          "feature": "only",
+          "weight": 3.148720974596666,
+          "training_row_label_counts": {
+            "neutral": 446,
+            "contradiction": 2
+          }
+        },
+        {
+          "feature": "for",
+          "weight": 2.3156068675711703,
+          "training_row_label_counts": {
+            "contradiction": 30,
+            "neutral": 90,
+            "entailment": 16
+          }
+        },
+        {
+          "feature": "and it",
+          "weight": 2.189097216003171,
+          "training_row_label_counts": {
+            "neutral": 42
+          }
+        },
+        {
+          "feature": "to",
+          "weight": 2.183284024808798,
+          "training_row_label_counts": {
+            "neutral": 190,
+            "entailment": 46,
+            "contradiction": 80
+          }
+        },
+        {
+          "feature": "and one",
+          "weight": 1.851888163494156,
+          "training_row_label_counts": {
+            "neutral": 95
+          }
+        }
+      ],
+      "contradiction": [
+        {
+          "feature": "no",
+          "weight": 7.719934992712497,
+          "training_row_label_counts": {
+            "contradiction": 282,
+            "neutral": 2
+          }
+        },
+        {
+          "feature": "not",
+          "weight": 5.912676091557706,
+          "training_row_label_counts": {
+            "contradiction": 438,
+            "entailment": 5,
+            "neutral": 10
+          }
+        },
+        {
+          "feature": "nobody",
+          "weight": 3.9071264229820066,
+          "training_row_label_counts": {
+            "contradiction": 39
+          }
+        },
+        {
+          "feature": "is not",
+          "weight": 2.972865393586991,
+          "training_row_label_counts": {
+            "contradiction": 272,
+            "entailment": 4,
+            "neutral": 8
+          }
+        },
+        {
+          "feature": "are not",
+          "weight": 2.286511903950329,
+          "training_row_label_counts": {
+            "contradiction": 103,
+            "entailment": 1,
+            "neutral": 1
+          }
+        },
+        {
+          "feature": "but",
+          "weight": 2.204835041803528,
+          "training_row_label_counts": {
+            "contradiction": 147,
+            "neutral": 1
+          }
+        },
+        {
+          "feature": "in",
+          "weight": 2.0554049152048233,
+          "training_row_label_counts": {
+            "contradiction": 246,
+            "entailment": 131,
+            "neutral": 353
+          }
+        },
+        {
+          "feature": "nothing",
+          "weight": 1.736243218789396,
+          "training_row_label_counts": {
+            "contradiction": 5
+          }
+        },
+        {
+          "feature": "tv",
+          "weight": 1.7319575750767233,
+          "training_row_label_counts": {
+            "contradiction": 7
+          }
+        },
+        {
+          "feature": "are indoors",
+          "weight": 1.600948239054258,
+          "training_row_label_counts": {
+            "contradiction": 3
+          }
+        },
+        {
+          "feature": "sleeping",
+          "weight": 1.5850181887287753,
+          "training_row_label_counts": {
+            "contradiction": 20,
+            "entailment": 1,
+            "neutral": 3
+          }
+        },
+        {
+          "feature": "standing by",
+          "weight": 1.5454003242595973,
+          "training_row_label_counts": {
+            "contradiction": 3
+          }
+        }
+      ]
+    },
+    "masked_word": {
+      "entailment": [
+        {
+          "feature": "blue cap",
+          "weight": 1.6929733360818344,
+          "training_row_label_counts": {
+            "entailment": 2,
+            "contradiction": 2,
+            "neutral": 2
+          }
+        },
+        {
+          "feature": "are outside",
+          "weight": 1.4165146475195334,
+          "training_row_label_counts": {
+            "entailment": 17,
+            "neutral": 27,
+            "contradiction": 5
+          }
+        },
+        {
+          "feature": "in field",
+          "weight": 1.3726223273088516,
+          "training_row_label_counts": {
+            "entailment": 5,
+            "neutral": 10,
+            "contradiction": 3
+          }
+        },
+        {
+          "feature": "the pool",
+          "weight": 1.2901481736220892,
+          "training_row_label_counts": {
+            "entailment": 4,
+            "contradiction": 3,
+            "neutral": 7
+          }
+        },
+        {
+          "feature": "are outdoors",
+          "weight": 1.1689087267758294,
+          "training_row_label_counts": {
+            "neutral": 7,
+            "entailment": 4
+          }
+        },
+        {
+          "feature": "some people",
+          "weight": 1.145644443445989,
+          "training_row_label_counts": {
+            "entailment": 6,
+            "contradiction": 4,
+            "neutral": 12
+          }
+        },
+        {
+          "feature": "the woman",
+          "weight": 1.1453707997093519,
+          "training_row_label_counts": {
+            "neutral": 47,
+            "contradiction": 41,
+            "entailment": 12
+          }
+        },
+        {
+          "feature": "watching concert",
+          "weight": 1.1220729943777175,
+          "training_row_label_counts": {
+            "entailment": 2,
+            "contradiction": 1,
+            "neutral": 3
+          }
+        },
+        {
+          "feature": "clothes on",
+          "weight": 1.1112377055424447,
+          "training_row_label_counts": {
+            "entailment": 4,
+            "contradiction": 2,
+            "neutral": 5
+          }
+        },
+        {
+          "feature": "and white",
+          "weight": 1.084231253880734,
+          "training_row_label_counts": {
+            "entailment": 6,
+            "contradiction": 7,
+            "neutral": 10
+          }
+        },
+        {
+          "feature": "jumping into",
+          "weight": 1.0784405885549642,
+          "training_row_label_counts": {
+            "entailment": 4,
+            "contradiction": 3,
+            "neutral": 6
+          }
+        },
+        {
+          "feature": "is indoors",
+          "weight": 1.0707076623766298,
+          "training_row_label_counts": {
+            "contradiction": 1,
+            "neutral": 5,
+            "entailment": 2
+          }
+        }
+      ],
+      "neutral": [
+        {
+          "feature": "wearing",
+          "weight": 3.4895813118046024,
+          "training_row_label_counts": {
+            "neutral": 543,
+            "contradiction": 67,
+            "entailment": 31
+          }
+        },
+        {
+          "feature": "using",
+          "weight": 3.353302451454451,
+          "training_row_label_counts": {
+            "neutral": 101,
+            "entailment": 2,
+            "contradiction": 5
+          }
+        },
+        {
+          "feature": "has",
+          "weight": 2.861812194095366,
+          "training_row_label_counts": {
+            "neutral": 185,
+            "contradiction": 32,
+            "entailment": 31
+          }
+        },
+        {
+          "feature": "nearby",
+          "weight": 2.856999075843518,
+          "training_row_label_counts": {
+            "neutral": 25
+          }
+        },
+        {
+          "feature": "for",
+          "weight": 2.586571505329856,
+          "training_row_label_counts": {
+            "contradiction": 30,
+            "neutral": 90,
+            "entailment": 16
+          }
+        },
+        {
+          "feature": "the",
+          "weight": 2.5084106413055833,
+          "training_row_label_counts": {
+            "neutral": 980,
+            "contradiction": 523,
+            "entailment": 268
+          }
+        },
+        {
+          "feature": "red",
+          "weight": 2.3370242325925092,
+          "training_row_label_counts": {
+            "contradiction": 19,
+            "neutral": 148,
+            "entailment": 6
+          }
+        },
+        {
+          "feature": "uses",
+          "weight": 2.335976971326884,
+          "training_row_label_counts": {
+            "entailment": 4,
+            "neutral": 29,
+            "contradiction": 3
+          }
+        },
+        {
+          "feature": "wears",
+          "weight": 2.330471451352799,
+          "training_row_label_counts": {
+            "neutral": 76,
+            "contradiction": 2
+          }
+        },
+        {
+          "feature": "present",
+          "weight": 2.2883796723985146,
+          "training_row_label_counts": {
+            "neutral": 19,
+            "entailment": 1
+          }
+        },
+        {
+          "feature": "blue",
+          "weight": 2.216533466126559,
+          "training_row_label_counts": {
+            "neutral": 320,
+            "contradiction": 20,
+            "entailment": 7
+          }
+        },
+        {
+          "feature": "to",
+          "weight": 2.1818417885014565,
+          "training_row_label_counts": {
+            "neutral": 190,
+            "entailment": 46,
+            "contradiction": 80
+          }
+        }
+      ],
+      "contradiction": [
+        {
+          "feature": "does",
+          "weight": 3.2050151900793176,
+          "training_row_label_counts": {
+            "contradiction": 38,
+            "entailment": 1,
+            "neutral": 2
+          }
+        },
+        {
+          "feature": "do",
+          "weight": 2.207448519719501,
+          "training_row_label_counts": {
+            "contradiction": 16,
+            "neutral": 2
+          }
+        },
+        {
+          "feature": "with red",
+          "weight": 1.5143898734280954,
+          "training_row_label_counts": {
+            "contradiction": 3,
+            "entailment": 1,
+            "neutral": 4
+          }
+        },
+        {
+          "feature": "in",
+          "weight": 1.5138690858898527,
+          "training_row_label_counts": {
+            "contradiction": 246,
+            "entailment": 131,
+            "neutral": 353
+          }
+        },
+        {
+          "feature": "at the",
+          "weight": 1.5019137925311654,
+          "training_row_label_counts": {
+            "contradiction": 37,
+            "neutral": 48,
+            "entailment": 23
+          }
+        },
+        {
+          "feature": "in blue",
+          "weight": 1.44318810810891,
+          "training_row_label_counts": {
+            "entailment": 3,
+            "contradiction": 6,
+            "neutral": 7
+          }
+        },
+        {
+          "feature": "are indoors",
+          "weight": 1.4225048473613615,
+          "training_row_label_counts": {
+            "contradiction": 3
+          }
+        },
+        {
+          "feature": "has to",
+          "weight": 1.4198947910456936,
+          "training_row_label_counts": {
+            "contradiction": 2
+          }
+        },
+        {
+          "feature": "swimming in",
+          "weight": 1.39494164825533,
+          "training_row_label_counts": {
+            "contradiction": 7
+          }
+        },
+        {
+          "feature": "standing by",
+          "weight": 1.3892621275610313,
+          "training_row_label_counts": {
+            "contradiction": 3
+          }
+        },
+        {
+          "feature": "going",
+          "weight": 1.3628493178813519,
+          "training_row_label_counts": {
+            "neutral": 9,
+            "contradiction": 9,
+            "entailment": 1
+          }
+        },
+        {
+          "feature": "he does",
+          "weight": 1.3581131616022537,
+          "training_row_label_counts": {
+            "contradiction": 19
+          }
+        }
+      ]
+    }
+  },
+  "length_by_followup_label": {
+    "train": {
+      "entailment": {
+        "n": 429,
+        "mean": 5.673659673659674,
+        "median": 5.0
+      },
+      "neutral": {
+        "n": 1930,
+        "mean": 13.018134715025907,
+        "median": 13.0
+      },
+      "contradiction": {
+        "n": 948,
+        "mean": 8.245780590717299,
+        "median": 7.0
+      }
+    },
+    "snli": {
+      "entailment": {
+        "n": 2038,
+        "mean": 5.633464180569185,
+        "median": 5.0
+      },
+      "neutral": {
+        "n": 6819,
+        "mean": 13.15530136383634,
+        "median": 13.0
+      },
+      "contradiction": {
+        "n": 4471,
+        "mean": 8.288302393200626,
+        "median": 7.0
+      }
+    },
+    "mnlim": {
+      "entailment": {
+        "n": 988,
+        "mean": 8.263157894736842,
+        "median": 8.0
+      },
+      "neutral": {
+        "n": 6658,
+        "mean": 17.124511865425053,
+        "median": 17.0
+      },
+      "contradiction": {
+        "n": 2750,
+        "mean": 10.579272727272727,
+        "median": 10.0
+      }
+    },
+    "mnlimm": {
+      "entailment": {
+        "n": 1014,
+        "mean": 9.043392504930967,
+        "median": 9.0
+      },
+      "neutral": {
+        "n": 6618,
+        "mean": 18.317316409791477,
+        "median": 18.0
+      },
+      "contradiction": {
+        "n": 2761,
+        "mean": 11.362911988409996,
+        "median": 11.0
+      }
+    },
+    "sick": {
+      "entailment": {
+        "n": 839,
+        "mean": 7.313468414779499,
+        "median": 7.0
+      },
+      "neutral": {
+        "n": 3133,
+        "mean": 14.992977976380466,
+        "median": 14.0
+      },
+      "contradiction": {
+        "n": 2043,
+        "mean": 9.297112090063631,
+        "median": 8.0
+      }
+    }
+  },
+  "unchanged_followup_examples": {
+    "train": [],
+    "snli": [
+      {
+        "pair_id": 3746,
+        "mr_id": "composite_inv",
+        "source_hypothesis": "A person in a shirt",
+        "followup_hypothesis": "A person in a shirt",
+        "label": "entailment"
+      }
+    ],
+    "mnlim": [
+      {
+        "pair_id": 9378,
+        "mr_id": "synonym_replacement",
+        "source_hypothesis": "In both Britain and America the term covers almost everyone.",
+        "followup_hypothesis": "In both Britain and America, the term covers almost everyone.",
+        "label": "entailment"
+      }
+    ],
+    "mnlimm": [],
+    "sick": []
+  },
+  "replay_matches_primary_metrics": true,
+  "inputs_unchanged": true,
+  "elapsed_seconds": 16.647951126098633
+}
