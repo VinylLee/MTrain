@@ -28,4 +28,4 @@
 - INV 双向蕴涵代理在 v3.4 样本中较高，但 v3.3 与 v3.4 的可评分样本数不同，不能作为直接的总体质量比较。
 - 130 条人工盲审包没有完成；因此没有人工质量非劣结论，也不满足质量冻结条件。
 
-训练侧对照报告见 [主报告](training_review/REPORT_zh.md) 和 [独立 NLI 模型报告](training_review/external_quality/REPORT_zh.md)。原始训练输出、生成日志及盲审包仍留在本机的 `local_runs/nli_v3_4_20261015_current_prompt_shortcut_check/`，没有纳入 Git。
+训练侧对照报告见 [主报告](training_review/REPORT_zh.md) 和 [独立 NLI 模型报告](training_review/external_quality/REPORT_zh.md)。七个 v3.4 运行目录中可分享的输出已打包为 [运行产物归档](v3_4_local_runs.tar.gz)；其中的私钥映射、质量私有映射、重复的 v3.3 数据和运行缓存未纳入。逐项大小、哈希及未收录清单见 [上传清单](UPLOAD_MANIFEST_zh.md)。原始目录仍保留在本机 `local_runs/`。
