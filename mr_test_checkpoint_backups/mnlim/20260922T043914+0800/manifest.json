@@ -1,0 +1,14 @@
+{
+  "completed_pairs": 1560,
+  "created_at": "2026-09-22T04:39:14.840569+08:00",
+  "dataset": "mnlim",
+  "log_bytes": 16265846,
+  "log_rows": 8687,
+  "log_sha256": "6b707848f386b079aad78a9f5decac4d9b896bd2a3508d01a037cc60634feccc",
+  "output_bytes": 3435372,
+  "output_rows": 11381,
+  "output_sha256": "e28af3880fdff3a8227d0a028efcf9b6e5b0af25e0a9d50d73e3a5d0bc2cda10",
+  "source_generation_log": "/home/ubuntu/MTrain/mr_test_data_v3_3_full/mnlim.generation_log.jsonl",
+  "source_output": "/home/ubuntu/MTrain/mr_test_data_v3_3_full/mnlim.jsonl",
+  "valid": true
+}

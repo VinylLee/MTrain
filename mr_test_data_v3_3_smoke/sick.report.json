@@ -1,0 +1,154 @@
+{
+  "prompt_version": "snli-pair-aware-all-label-mrs-v3.3",
+  "provenance_schema_version": 1,
+  "config_fingerprint": "3f7ed9ff3cd82904ebc6f6d5a711f212397a7fb6c25d330a886be42625cf74c0",
+  "source_count": 12,
+  "followup_count": 0,
+  "total_rows": 12,
+  "source_label_counts": {
+    "0": 4,
+    "1": 4,
+    "2": 4
+  },
+  "followup_label_counts": {},
+  "operation_results": {
+    "negation_flip": {
+      "attempted": 4,
+      "accepted": 0,
+      "acceptance_rate": 0.0
+    },
+    "antonym_substitution": {
+      "attempted": 2,
+      "accepted": 0,
+      "acceptance_rate": 0.0
+    },
+    "adding_contradiction": {
+      "attempted": 4,
+      "accepted": 0,
+      "acceptance_rate": 0.0
+    },
+    "pronoun_substitution": {
+      "attempted": 12,
+      "accepted": 0,
+      "acceptance_rate": 0.0
+    },
+    "voice_switch": {
+      "attempted": 12,
+      "accepted": 0,
+      "acceptance_rate": 0.0
+    },
+    "synonym_replacement": {
+      "attempted": 12,
+      "accepted": 0,
+      "acceptance_rate": 0.0
+    },
+    "uninformative": {
+      "attempted": 4,
+      "accepted": 0,
+      "acceptance_rate": 0.0
+    },
+    "conditional_clause": {
+      "attempted": 4,
+      "accepted": 0,
+      "acceptance_rate": 0.0
+    },
+    "composite_inv": {
+      "attempted": 12,
+      "accepted": 0,
+      "acceptance_rate": 0.0
+    },
+    "composite_flip": {
+      "attempted": 4,
+      "accepted": 0,
+      "acceptance_rate": 0.0
+    },
+    "composite_neutral": {
+      "attempted": 4,
+      "accepted": 0,
+      "acceptance_rate": 0.0
+    }
+  },
+  "component_mrs_rows": 0,
+  "status": "complete",
+  "dataset": "sick",
+  "input": "/home/ubuntu/MTrain/mr_test_sources_v3_3/sick.jsonl",
+  "output": "/home/ubuntu/MTrain/mr_test_data_v3_3_smoke/sick.jsonl",
+  "argv": [
+    "generate_mr_test_v3_3.py",
+    "--dataset",
+    "sick",
+    "--input",
+    "mr_test_sources_v3_3/sick.jsonl",
+    "--output",
+    "mr_test_data_v3_3_smoke/sick.jsonl",
+    "--sample-size",
+    "12",
+    "--seed",
+    "42",
+    "--candidate-count",
+    "3",
+    "--retries",
+    "2",
+    "--workers",
+    "8",
+    "--checkpoint-every",
+    "1",
+    "--overwrite"
+  ],
+  "cwd": "/home/ubuntu/MTrain",
+  "effective_args": {
+    "dataset": "sick",
+    "input": "mr_test_sources_v3_3/sick.jsonl",
+    "output": "mr_test_data_v3_3_smoke/sick.jsonl",
+    "sample_size": 12,
+    "all": false,
+    "seed": 42,
+    "generator_model": "gemma-3-4b-it-qat",
+    "judge_model": "gemma-3-4b-it-qat",
+    "host": "127.0.0.1",
+    "port": 1234,
+    "candidate_count": 3,
+    "retries": 2,
+    "workers": 8,
+    "checkpoint_every": 1,
+    "operations": "negation_flip,antonym_substitution,adding_contradiction,pronoun_substitution,voice_switch,synonym_replacement,uninformative,conditional_clause,composite_inv,composite_flip,composite_neutral",
+    "overwrite": true,
+    "resume": false
+  },
+  "generator_model": "gemma-3-4b-it-qat",
+  "judge_model": "gemma-3-4b-it-qat",
+  "base_url": "http://127.0.0.1:1234/v1",
+  "operations": [
+    "negation_flip",
+    "antonym_substitution",
+    "adding_contradiction",
+    "pronoun_substitution",
+    "voice_switch",
+    "synonym_replacement",
+    "uninformative",
+    "conditional_clause",
+    "composite_inv",
+    "composite_flip",
+    "composite_neutral"
+  ],
+  "selected_pair_ids": [
+    4508,
+    3551,
+    1844,
+    238,
+    1216,
+    3466,
+    3588,
+    2914,
+    1163,
+    4455,
+    747,
+    2326
+  ],
+  "elapsed_seconds": 230.61,
+  "input_sha256": "40b2ac618e051150a6d4b7a69ae2497fa693d39b5b21076ab0c13928efd9ebc5",
+  "output_sha256": "f470f65f48ae826e50299efc97ee0b52f41cf354a870f589263f7ec8ccd290dd",
+  "generation_log_sha256": "b8d399f8e407b23370017271163144e5e8b82a231b52663e67c39e119fc9967d",
+  "adapter_source_sha256": "e0fc13296304253c30004651dd019014258a7e81308c98feb1c86810eccdf7e9",
+  "core_generator_sha256": "500d03d6207abc1fa5770e539cfef4184a52afd47cdbd6b516b904d3ec75fc2b"
+}

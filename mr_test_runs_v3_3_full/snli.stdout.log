@@ -1,0 +1,60 @@
+
+[2026-09-18 17:35:26 +0800] launch dataset=snli server_model=gemma-3-4b-it-qat-worker2 mode=fresh
+
+[2026-09-18 17:36:34 +0800] launch dataset=snli server_model=gemma-3-4b-it-qat-worker2 mode=fresh
+
+[2026-09-18 17:39:20 +0800] launch dataset=snli server_model=gemma-3-4b-it-qat-worker2 workers=2 mode=fresh
+Traceback (most recent call last):
+  File "/home/ubuntu/MTrain/generate_mr_test_v3_3.py", line 414, in <module>
+    raise SystemExit(main())
+                     ^^^^^^
+  File "/home/ubuntu/MTrain/generate_mr_test_v3_3.py", line 334, in main
+    raise RuntimeError(
+RuntimeError: model request failed for dataset=snli pair_id=0 operation=pronoun_substitution: APITimeoutError: Request timed out.
+
+[2026-09-19 08:37:49 +0800] launch dataset=snli server_model=gemma-3-4b-it-qat-worker2 workers=2 timeout=600 mode=fresh
+[snli 1/9824] pair_id=0 eligible=3 pending=3
+
+[2026-09-19 09:05:02 +0800] launch dataset=snli server_model=gemma-3-4b-it-qat workers=2 timeout=600 mode=fresh
+[snli 1/9824] pair_id=0 eligible=3 pending=3
+[snli 2/9824] pair_id=1 eligible=11 pending=11
+[snli 3/9824] pair_id=2 eligible=3 pending=3
+[snli 4/9824] pair_id=3 eligible=3 pending=3
+[snli 5/9824] pair_id=4 eligible=10 pending=10
+[snli 6/9824] pair_id=5 eligible=4 pending=4
+[snli 7/9824] pair_id=6 eligible=9 pending=9
+[snli 8/9824] pair_id=7 eligible=3 pending=3
+[snli 9/9824] pair_id=8 eligible=3 pending=3
+[snli 10/9824] pair_id=9 eligible=3 pending=3
+[snli 11/9824] pair_id=10 eligible=7 pending=7
+[snli 12/9824] pair_id=11 eligible=4 pending=4
+[snli 13/9824] pair_id=12 eligible=10 pending=10
+[snli 14/9824] pair_id=13 eligible=10 pending=10
+[snli 15/9824] pair_id=14 eligible=3 pending=3
+[snli 16/9824] pair_id=15 eligible=3 pending=3
+[snli 17/9824] pair_id=16 eligible=9 pending=9
+[snli 18/9824] pair_id=17 eligible=4 pending=4
+[snli 19/9824] pair_id=18 eligible=10 pending=10
+[snli 20/9824] pair_id=19 eligible=4 pending=4
+[snli 21/9824] pair_id=20 eligible=4 pending=4
+[snli 22/9824] pair_id=21 eligible=3 pending=3
+[snli 23/9824] pair_id=22 eligible=9 pending=9
+[snli 24/9824] pair_id=23 eligible=4 pending=4
+[snli 25/9824] pair_id=24 eligible=3 pending=3
+[snli 26/9824] pair_id=25 eligible=3 pending=3
+[snli 27/9824] pair_id=26 eligible=9 pending=9
+[snli 28/9824] pair_id=27 eligible=10 pending=10
+[snli 29/9824] pair_id=28 eligible=4 pending=4
+[snli 30/9824] pair_id=29 eligible=4 pending=4
+[snli 31/9824] pair_id=30 eligible=3 pending=3
+[snli 32/9824] pair_id=31 eligible=11 pending=11
+[snli 33/9824] pair_id=32 eligible=11 pending=11
+[snli 34/9824] pair_id=33 eligible=10 pending=10
+[snli 35/9824] pair_id=34 eligible=4 pending=4
+[snli 36/9824] pair_id=35 eligible=4 pending=4
+[snli 37/9824] pair_id=36 eligible=3 pending=3
+[snli 38/9824] pair_id=37 eligible=10 pending=10
+[snli 39/9824] pair_id=38 eligible=3 pending=3
+[snli 40/9824] pair_id=39 eligible=9 pending=9
+[snli 41/9824] pair_id=40 eligible=4 pending=4
+[snli 42/9824] pair_id=41 eligible=4 pending=4

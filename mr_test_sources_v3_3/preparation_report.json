@@ -1,0 +1,91 @@
+{
+  "status": "complete",
+  "source_selection": "is_source=true AND mr_id=none",
+  "datasets": [
+    {
+      "dataset": "mnlim",
+      "legacy_path": "/home/ubuntu/LLMTrain/LLMTrain/data/nli/mr_test_data_merged/mnlim.jsonl",
+      "snapshot_path": "/home/ubuntu/MTrain/mr_test_data_merged_legacy_20260918/mnlim.jsonl",
+      "source_path": "/home/ubuntu/MTrain/mr_test_sources_v3_3/mnlim.jsonl",
+      "legacy_sha256": "e04ebb37cd96a830e1a4d7c41c072e67f1487ebdfb8751d37fa82c92dc1cb866",
+      "snapshot_sha256": "e04ebb37cd96a830e1a4d7c41c072e67f1487ebdfb8751d37fa82c92dc1cb866",
+      "source_sha256": "4c9b91af0ba094c0cef37ff63cd1b0eb77d1b737a3a36a89da008469fde2fff8",
+      "total_rows": 22423,
+      "source_rows": 9815,
+      "followup_rows": 12608,
+      "source_label_counts": {
+        "0": 3479,
+        "1": 3123,
+        "2": 3213
+      },
+      "unique_pair_ids": 9815,
+      "unique_source_triples": 9815,
+      "matches_current_original_dataset": true
+    },
+    {
+      "dataset": "mnlimm",
+      "legacy_path": "/home/ubuntu/LLMTrain/LLMTrain/data/nli/mr_test_data_merged/mnlimm.jsonl",
+      "snapshot_path": "/home/ubuntu/MTrain/mr_test_data_merged_legacy_20260918/mnlimm.jsonl",
+      "source_path": "/home/ubuntu/MTrain/mr_test_sources_v3_3/mnlimm.jsonl",
+      "legacy_sha256": "0f0f83aeff374e4f3a63801d79b5b45216e25c5e4e0f1f9b0ac78bf51f12e3cc",
+      "snapshot_sha256": "0f0f83aeff374e4f3a63801d79b5b45216e25c5e4e0f1f9b0ac78bf51f12e3cc",
+      "source_sha256": "beec9e0786474e6a00fa3dad90365c8b662094b85bf68d735e00aed9e21079c7",
+      "total_rows": 22416,
+      "source_rows": 9832,
+      "followup_rows": 12584,
+      "source_label_counts": {
+        "0": 3463,
+        "1": 3129,
+        "2": 3240
+      },
+      "unique_pair_ids": 9832,
+      "unique_source_triples": 9830,
+      "matches_current_original_dataset": true
+    },
+    {
+      "dataset": "sick",
+      "legacy_path": "/home/ubuntu/LLMTrain/LLMTrain/data/nli/mr_test_data_merged/sick.jsonl",
+      "snapshot_path": "/home/ubuntu/MTrain/mr_test_data_merged_legacy_20260918/sick.jsonl",
+      "source_path": "/home/ubuntu/MTrain/mr_test_sources_v3_3/sick.jsonl",
+      "legacy_sha256": "99469d3c258919272e58b7e62f5e85ec7c717bbd5d0f5db52d7cea38cdc4d811",
+      "snapshot_sha256": "99469d3c258919272e58b7e62f5e85ec7c717bbd5d0f5db52d7cea38cdc4d811",
+      "source_sha256": "40b2ac618e051150a6d4b7a69ae2497fa693d39b5b21076ab0c13928efd9ebc5",
+      "total_rows": 10655,
+      "source_rows": 4906,
+      "followup_rows": 5749,
+      "source_label_counts": {
+        "0": 1404,
+        "1": 2790,
+        "2": 712
+      },
+      "unique_pair_ids": 4906,
+      "unique_source_triples": 4906,
+      "matches_current_original_dataset": true
+    },
+    {
+      "dataset": "snli",
+      "legacy_path": "/home/ubuntu/LLMTrain/LLMTrain/data/nli/mr_test_data_merged/snli.jsonl",
+      "snapshot_path": "/home/ubuntu/MTrain/mr_test_data_merged_legacy_20260918/snli.jsonl",
+      "source_path": "/home/ubuntu/MTrain/mr_test_sources_v3_3/snli.jsonl",
+      "legacy_sha256": "d6f1486b13cfbc1868ad4ba626ad5bc918a9096e97c7e23da14269329ccc3686",
+      "snapshot_sha256": "d6f1486b13cfbc1868ad4ba626ad5bc918a9096e97c7e23da14269329ccc3686",
+      "source_sha256": "22e815c868a5377317ea557d2d2da7ec2fe912895c8c5379e0cf8fd1c5c5f241",
+      "total_rows": 22548,
+      "source_rows": 9824,
+      "followup_rows": 12724,
+      "source_label_counts": {
+        "0": 3368,
+        "1": 3219,
+        "2": 3237
+      },
+      "unique_pair_ids": 9824,
+      "unique_source_triples": 9824,
+      "matches_current_original_dataset": true
+    }
+  ],
+  "totals": {
+    "rows": 78042,
+    "sources": 34377,
+    "followups": 43665
+  }
+}

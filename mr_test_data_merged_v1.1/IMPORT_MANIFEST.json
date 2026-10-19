@@ -1,0 +1,233 @@
+{
+  "schema_version": 1,
+  "imported_at_utc": "2026-10-12T06:52:00.066816+00:00",
+  "source_directory": "/home/ubuntu/LLMTrain/LLMTrain/data/nli/mr_test_data_merged_v1.1",
+  "destination_directory": "/home/ubuntu/MTrain/mr_test_data_merged_v1.1",
+  "user_reported_generation_status": "all four test datasets complete; two generated on another server",
+  "standalone_generation_logs_present": [],
+  "generation_log_note": "No standalone generation logs were found in the source directory. This import does not reconstruct missing logs.",
+  "files": [
+    {
+      "path": "mnlim.jsonl",
+      "bytes": 62559857,
+      "source_sha256": "4d172e49a05a27dadc37e5cea25b9f16467db0267b1c22270528d5a4cec15de1",
+      "destination_sha256": "4d172e49a05a27dadc37e5cea25b9f16467db0267b1c22270528d5a4cec15de1",
+      "verified": true
+    },
+    {
+      "path": "mnlimm.jsonl",
+      "bytes": 62864446,
+      "source_sha256": "1cc44cc9f27655a00a531e79e4b3a8a8678c09665c691b9a9d3a1ae5c743ddb1",
+      "destination_sha256": "1cc44cc9f27655a00a531e79e4b3a8a8678c09665c691b9a9d3a1ae5c743ddb1",
+      "verified": true
+    },
+    {
+      "path": "sick.jsonl",
+      "bytes": 33460357,
+      "source_sha256": "6d6ce729d669699434759d9b1fe0c4286dca3f4c643c87052e3ac0e891009ffd",
+      "destination_sha256": "6d6ce729d669699434759d9b1fe0c4286dca3f4c643c87052e3ac0e891009ffd",
+      "verified": true
+    },
+    {
+      "path": "snli.jsonl",
+      "bytes": 71992606,
+      "source_sha256": "21c1236c6b196be3382af3f4f04136d350ff73e03c9970db4f2f66f5763115fc",
+      "destination_sha256": "21c1236c6b196be3382af3f4f04136d350ff73e03c9970db4f2f66f5763115fc",
+      "verified": true
+    }
+  ],
+  "datasets": {
+    "mnlim": {
+      "rows": 20211,
+      "source_rows": 9815,
+      "followup_rows": 10396,
+      "pair_groups": 9815,
+      "mr_counts": {
+        "none": 9815,
+        "uninformative": 3315,
+        "conditional_clause": 2689,
+        "negation_flip": 1904,
+        "pronoun_substitution": 835,
+        "composite_flip": 461,
+        "composite_neutral": 639,
+        "adding_contradiction": 192,
+        "voice_switch": 126,
+        "composite_inv": 40,
+        "synonym_replacement": 193,
+        "antonym_substitution": 2
+      },
+      "mr_type_counts": {
+        "inv": 11009,
+        "neutral": 6643,
+        "flip": 2559
+      },
+      "label_counts": {
+        "1": 9781,
+        "2": 5963,
+        "0": 4467
+      },
+      "rows_with_component_mrs": 1140,
+      "schema_keys_first_row": [
+        "idx",
+        "premise",
+        "hypothesis",
+        "mr_id",
+        "pair_id",
+        "label",
+        "mr_type",
+        "is_source",
+        "ensemble_quality",
+        "ensemble_quality_v1_1"
+      ],
+      "duplicate_source_pair_groups": 0,
+      "followup_groups_missing_source": 0,
+      "source_marker_disagreements": 0,
+      "json_schema_and_text_checks_passed": true,
+      "generation_completion_basis": "user confirmation; standalone generation report/log unavailable in imported directory"
+    },
+    "mnlimm": {
+      "rows": 20225,
+      "source_rows": 9832,
+      "followup_rows": 10393,
+      "pair_groups": 9832,
+      "mr_counts": {
+        "none": 9832,
+        "negation_flip": 1873,
+        "uninformative": 3289,
+        "conditional_clause": 2710,
+        "composite_neutral": 611,
+        "pronoun_substitution": 881,
+        "voice_switch": 146,
+        "composite_inv": 48,
+        "composite_flip": 500,
+        "synonym_replacement": 167,
+        "adding_contradiction": 165,
+        "antonym_substitution": 3
+      },
+      "mr_type_counts": {
+        "inv": 11074,
+        "flip": 2541,
+        "neutral": 6610
+      },
+      "label_counts": {
+        "2": 6001,
+        "0": 4477,
+        "1": 9747
+      },
+      "rows_with_component_mrs": 1159,
+      "schema_keys_first_row": [
+        "idx",
+        "premise",
+        "hypothesis",
+        "mr_id",
+        "pair_id",
+        "label",
+        "mr_type",
+        "is_source",
+        "ensemble_quality",
+        "ensemble_quality_v1_1"
+      ],
+      "duplicate_source_pair_groups": 0,
+      "followup_groups_missing_source": 0,
+      "source_marker_disagreements": 0,
+      "json_schema_and_text_checks_passed": true,
+      "generation_completion_basis": "user confirmation; standalone generation report/log unavailable in imported directory"
+    },
+    "sick": {
+      "rows": 10921,
+      "source_rows": 4906,
+      "followup_rows": 6015,
+      "pair_groups": 4906,
+      "mr_counts": {
+        "none": 4906,
+        "negation_flip": 970,
+        "voice_switch": 223,
+        "composite_flip": 478,
+        "composite_neutral": 615,
+        "pronoun_substitution": 966,
+        "uninformative": 1275,
+        "conditional_clause": 1216,
+        "composite_inv": 28,
+        "adding_contradiction": 159,
+        "synonym_replacement": 79,
+        "antonym_substitution": 6
+      },
+      "mr_type_counts": {
+        "inv": 6202,
+        "flip": 1613,
+        "neutral": 3106
+      },
+      "label_counts": {
+        "1": 5923,
+        "0": 2243,
+        "2": 2755
+      },
+      "rows_with_component_mrs": 1121,
+      "schema_keys_first_row": [
+        "idx",
+        "premise",
+        "hypothesis",
+        "mr_id",
+        "pair_id",
+        "label",
+        "mr_type",
+        "is_source",
+        "ensemble_quality",
+        "ensemble_quality_v1_1"
+      ],
+      "duplicate_source_pair_groups": 0,
+      "followup_groups_missing_source": 0,
+      "source_marker_disagreements": 0,
+      "json_schema_and_text_checks_passed": true,
+      "generation_completion_basis": "user confirmation; standalone generation report/log unavailable in imported directory"
+    },
+    "snli": {
+      "rows": 23152,
+      "source_rows": 9824,
+      "followup_rows": 13328,
+      "pair_groups": 9824,
+      "mr_counts": {
+        "none": 9824,
+        "negation_flip": 2275,
+        "uninformative": 3252,
+        "conditional_clause": 2546,
+        "composite_flip": 1175,
+        "composite_neutral": 998,
+        "adding_contradiction": 875,
+        "pronoun_substitution": 1598,
+        "voice_switch": 220,
+        "antonym_substitution": 67,
+        "synonym_replacement": 177,
+        "composite_inv": 145
+      },
+      "mr_type_counts": {
+        "inv": 11964,
+        "flip": 4392,
+        "neutral": 6796
+      },
+      "label_counts": {
+        "1": 10038,
+        "0": 5406,
+        "2": 7708
+      },
+      "rows_with_component_mrs": 2318,
+      "schema_keys_first_row": [
+        "idx",
+        "premise",
+        "hypothesis",
+        "mr_id",
+        "pair_id",
+        "label",
+        "mr_type",
+        "is_source",
+        "ensemble_quality",
+        "ensemble_quality_v1_1"
+      ],
+      "duplicate_source_pair_groups": 0,
+      "followup_groups_missing_source": 0,
+      "source_marker_disagreements": 0,
+      "json_schema_and_text_checks_passed": true,
+      "generation_completion_basis": "user confirmation; standalone generation report/log unavailable in imported directory"
+    }
+  }
+}

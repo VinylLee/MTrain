@@ -1,0 +1,161 @@
+{
+  "prompt_version": "snli-pair-aware-all-label-mrs-v3.3",
+  "provenance_schema_version": 1,
+  "config_fingerprint": "3f7ed9ff3cd82904ebc6f6d5a711f212397a7fb6c25d330a886be42625cf74c0",
+  "source_count": 12,
+  "followup_count": 20,
+  "total_rows": 32,
+  "source_label_counts": {
+    "0": 4,
+    "1": 4,
+    "2": 4
+  },
+  "followup_label_counts": {
+    "0": 2,
+    "1": 9,
+    "2": 9
+  },
+  "operation_results": {
+    "negation_flip": {
+      "attempted": 4,
+      "accepted": 4,
+      "acceptance_rate": 1.0
+    },
+    "antonym_substitution": {
+      "attempted": 2,
+      "accepted": 0,
+      "acceptance_rate": 0.0
+    },
+    "adding_contradiction": {
+      "attempted": 4,
+      "accepted": 0,
+      "acceptance_rate": 0.0
+    },
+    "pronoun_substitution": {
+      "attempted": 12,
+      "accepted": 3,
+      "acceptance_rate": 0.25
+    },
+    "voice_switch": {
+      "attempted": 12,
+      "accepted": 2,
+      "acceptance_rate": 0.1667
+    },
+    "synonym_replacement": {
+      "attempted": 12,
+      "accepted": 0,
+      "acceptance_rate": 0.0
+    },
+    "uninformative": {
+      "attempted": 4,
+      "accepted": 3,
+      "acceptance_rate": 0.75
+    },
+    "conditional_clause": {
+      "attempted": 4,
+      "accepted": 4,
+      "acceptance_rate": 1.0
+    },
+    "composite_inv": {
+      "attempted": 12,
+      "accepted": 0,
+      "acceptance_rate": 0.0
+    },
+    "composite_flip": {
+      "attempted": 4,
+      "accepted": 2,
+      "acceptance_rate": 0.5
+    },
+    "composite_neutral": {
+      "attempted": 4,
+      "accepted": 2,
+      "acceptance_rate": 0.5
+    }
+  },
+  "component_mrs_rows": 4,
+  "status": "complete",
+  "dataset": "sick",
+  "input": "/home/ubuntu/MTrain/mr_test_sources_v3_3/sick.jsonl",
+  "output": "/home/ubuntu/MTrain/mr_test_data_v3_3_smoke_gpu/sick.jsonl",
+  "argv": [
+    "generate_mr_test_v3_3.py",
+    "--dataset",
+    "sick",
+    "--input",
+    "mr_test_sources_v3_3/sick.jsonl",
+    "--output",
+    "mr_test_data_v3_3_smoke_gpu/sick.jsonl",
+    "--sample-size",
+    "12",
+    "--seed",
+    "42",
+    "--candidate-count",
+    "3",
+    "--retries",
+    "2",
+    "--workers",
+    "4",
+    "--checkpoint-every",
+    "1",
+    "--server-model",
+    "gemma-3-4b-it-qat"
+  ],
+  "cwd": "/home/ubuntu/MTrain",
+  "effective_args": {
+    "dataset": "sick",
+    "input": "mr_test_sources_v3_3/sick.jsonl",
+    "output": "mr_test_data_v3_3_smoke_gpu/sick.jsonl",
+    "sample_size": 12,
+    "all": false,
+    "seed": 42,
+    "generator_model": "gemma-3-4b-it-qat",
+    "judge_model": "gemma-3-4b-it-qat",
+    "server_model": "gemma-3-4b-it-qat",
+    "host": "127.0.0.1",
+    "port": 1234,
+    "candidate_count": 3,
+    "retries": 2,
+    "workers": 4,
+    "checkpoint_every": 1,
+    "operations": "negation_flip,antonym_substitution,adding_contradiction,pronoun_substitution,voice_switch,synonym_replacement,uninformative,conditional_clause,composite_inv,composite_flip,composite_neutral",
+    "overwrite": false,
+    "resume": false
+  },
+  "generator_model": "gemma-3-4b-it-qat",
+  "judge_model": "gemma-3-4b-it-qat",
+  "server_model": "gemma-3-4b-it-qat",
+  "base_url": "http://127.0.0.1:1234/v1",
+  "operations": [
+    "negation_flip",
+    "antonym_substitution",
+    "adding_contradiction",
+    "pronoun_substitution",
+    "voice_switch",
+    "synonym_replacement",
+    "uninformative",
+    "conditional_clause",
+    "composite_inv",
+    "composite_flip",
+    "composite_neutral"
+  ],
+  "selected_pair_ids": [
+    4508,
+    3551,
+    1844,
+    238,
+    1216,
+    3466,
+    3588,
+    2914,
+    1163,
+    4455,
+    747,
+    2326
+  ],
+  "elapsed_seconds": 2539.72,
+  "input_sha256": "40b2ac618e051150a6d4b7a69ae2497fa693d39b5b21076ab0c13928efd9ebc5",
+  "output_sha256": "1b1dbfaa1d584a9f5d026c05437fa67abda38378ea5f904f3f200c0fe5d75bcf",
+  "generation_log_sha256": "0fd23d477ddefaf81d2caddc22a8c16df6ec7b3d8ef9ac3560a25fa0c9ad11e3",
+  "adapter_source_sha256": "80fd7757c4586f9916325449ada0be62869a2a185b640f59a765d249e04056db",
+  "core_generator_sha256": "500d03d6207abc1fa5770e539cfef4184a52afd47cdbd6b516b904d3ec75fc2b"
+}
